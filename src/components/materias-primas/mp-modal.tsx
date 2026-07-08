@@ -81,15 +81,7 @@ type BulkColumn = {
   minWidth?: number;
 };
 
-const BULK_BASE_COLUMNS: BulkColumn[] = [
-  { field: "sku", label: "SKU *", placeholder: "SKU", kind: "input", minWidth: 132 },
-  {
-    field: "nome",
-    label: "Nome *",
-    placeholder: "Nome da matéria-prima",
-    kind: "input",
-    minWidth: 220,
-  },
+const BULK_CONTEXT_COLUMNS: BulkColumn[] = [
   {
     field: "categoria",
     label: "Categoria *",
@@ -106,6 +98,20 @@ const BULK_BASE_COLUMNS: BulkColumn[] = [
     listId: "mp-bulk-fornecedores",
     minWidth: 170,
   },
+];
+
+const BULK_IDENTITY_COLUMNS: BulkColumn[] = [
+  { field: "sku", label: "SKU *", placeholder: "SKU", kind: "input", minWidth: 132 },
+  {
+    field: "nome",
+    label: "Nome *",
+    placeholder: "Nome da matéria-prima",
+    kind: "input",
+    minWidth: 220,
+  },
+];
+
+const BULK_COMMERCIAL_COLUMNS: BulkColumn[] = [
   {
     field: "preco_custo",
     label: "Preço de Custo *",
@@ -395,10 +401,31 @@ function isBulkRowEmpty(row: BulkRow): boolean {
 }
 
 function getBulkColumns(tipoMaterial: TipoMaterial): BulkColumn[] {
-  if (tipoMaterial === "lamina") return [...BULK_BASE_COLUMNS, ...BULK_LAMINA_COLUMNS];
-  if (tipoMaterial === "cabo") return [...BULK_BASE_COLUMNS, ...BULK_CABO_COLUMNS];
-  if (tipoMaterial === "bainha") return [...BULK_BASE_COLUMNS, ...BULK_BAINHA_COLUMNS];
-  return BULK_BASE_COLUMNS;
+  if (tipoMaterial === "lamina") {
+    return [
+      ...BULK_CONTEXT_COLUMNS,
+      ...BULK_LAMINA_COLUMNS,
+      ...BULK_IDENTITY_COLUMNS,
+      ...BULK_COMMERCIAL_COLUMNS,
+    ];
+  }
+  if (tipoMaterial === "cabo") {
+    return [
+      ...BULK_CONTEXT_COLUMNS,
+      ...BULK_CABO_COLUMNS,
+      ...BULK_IDENTITY_COLUMNS,
+      ...BULK_COMMERCIAL_COLUMNS,
+    ];
+  }
+  if (tipoMaterial === "bainha") {
+    return [
+      ...BULK_CONTEXT_COLUMNS,
+      ...BULK_BAINHA_COLUMNS,
+      ...BULK_IDENTITY_COLUMNS,
+      ...BULK_COMMERCIAL_COLUMNS,
+    ];
+  }
+  return [...BULK_CONTEXT_COLUMNS, ...BULK_IDENTITY_COLUMNS, ...BULK_COMMERCIAL_COLUMNS];
 }
 
 export function MPModal({
@@ -902,23 +929,6 @@ export function MPModal({
               </div>
             )}
 
-            <Input
-              id="sku"
-              label="SKU *"
-              disabled={loadingReferencias}
-              placeholder="Ex: MP-0001"
-              value={form.sku}
-              onChange={(e) => set("sku", e.target.value)}
-            />
-            <Input
-              id="nome"
-              label="Nome *"
-              disabled={loadingReferencias}
-              placeholder="Ex: Lâmina Aço Inox 420"
-              value={form.nome}
-              onChange={(e) => set("nome", e.target.value)}
-            />
-
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label
@@ -1164,6 +1174,23 @@ export function MPModal({
                 {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
               </p>
             </div>
+
+            <Input
+              id="sku"
+              label="SKU *"
+              disabled={loadingReferencias}
+              placeholder="Ex: MP-0001"
+              value={form.sku}
+              onChange={(e) => set("sku", e.target.value)}
+            />
+            <Input
+              id="nome"
+              label="Nome *"
+              disabled={loadingReferencias}
+              placeholder="Ex: Lâmina Aço Inox 420"
+              value={form.nome}
+              onChange={(e) => set("nome", e.target.value)}
+            />
 
             <div className="grid grid-cols-3 gap-3">
               <Input
