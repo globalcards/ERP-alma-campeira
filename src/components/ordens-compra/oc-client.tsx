@@ -37,6 +37,7 @@ import { qk } from "@/lib/query/keys";
 import { getMatériasPrimas as getMateriasPrimas } from "@/lib/actions/materias-primas";
 import { getOptimizedImageUrl } from "@/lib/images";
 import { FilaReposicaoDetalheModal } from "@/components/ordens-compra/fila-reposicao-detalhe";
+import { formatarDocumento } from "@/lib/br/documento";
 
 type Perm = { ver: boolean; criar: boolean; editar: boolean; deletar: boolean };
 
@@ -92,6 +93,14 @@ function obterRotuloAgrupador(tipoMaterial: TipoMaterial | ""): string {
   if (tipoMaterial === "cabo") return "Tipo";
   if (tipoMaterial === "bainha") return "Modelo";
   return "Lista";
+}
+
+function fornecedorCompativelComTipo(
+  fornecedor: Pick<Fornecedor, "tipos_materiais"> | null | undefined,
+  tipoMaterial: TipoMaterial | "",
+) {
+  if (!tipoMaterial) return true;
+  return (fornecedor?.tipos_materiais ?? []).includes(tipoMaterial);
 }
 
 type ColunaEspecificaMaterial = {
@@ -205,10 +214,6 @@ function labelFormaPagamentoOc(formaPagamento: FormaPagamentoOC | null | undefin
   return FORMAS_PAGAMENTO_OC[formaPagamento]?.label ?? formaPagamento;
 }
 
-function statusOcExportacao(oc: OrdemCompra) {
-  return `${STATUS_OC[oc.status].label}${oc.pago ? " · Pago" : ""}`;
-}
-
 function htmlDocumentoOc(titulo: string, conteudo: string) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -218,21 +223,15 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
   <title>${escapeHtml(titulo)}</title>
   <style>
     :root {
-      --ink: #16181d;
-      --muted: #667085;
-      --line: #d7dce3;
-      --line-strong: #c4cad4;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --line-strong: #9ca3af;
       --surface: #ffffff;
-      --surface-soft: #f8fafc;
-      --surface-accent: #fffbeb;
-      --accent: #ca8a04;
-      --accent-soft: #fef3c7;
+      --surface-soft: #f9fafb;
+      --accent: #0f172a;
+      --accent-soft: #e5e7eb;
       --success: #166534;
-      --success-soft: #dcfce7;
-      --violet: #6d28d9;
-      --violet-soft: #ede9fe;
-      --slate: #475467;
-      --slate-soft: #eef2f7;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: #fff; color: var(--ink); }
@@ -245,164 +244,129 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
     }
     .oc-page {
       width: 100%;
-      padding: 28px 30px 24px;
+      padding: 26px 28px 20px;
       page-break-after: always;
     }
     .oc-page:last-child { page-break-after: auto; }
-    .top-rule {
-      height: 6px;
-      background: var(--accent);
-      border-radius: 999px;
-      margin-bottom: 18px;
-    }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 22px;
+      gap: 18px;
       margin-bottom: 18px;
+      padding-bottom: 18px;
+      border-bottom: 2px solid var(--accent);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
       min-width: 0;
       flex: 1;
     }
     .brand img {
-      height: 52px;
+      height: 48px;
       width: auto;
       object-fit: contain;
       flex: 0 0 auto;
     }
     .brand-copy { min-width: 0; }
-    .eyebrow {
+    .brand-name {
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.12em;
       color: var(--muted);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
     }
     h1 {
-      font-size: 24px;
+      font-size: 26px;
       line-height: 1.1;
       letter-spacing: -0.02em;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .subtitle {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
     }
-    .summary-card {
-      width: 230px;
+    .document-card {
+      width: 220px;
       border: 1px solid var(--line);
-      background: var(--surface-soft);
-      border-radius: 14px;
+      border-radius: 12px;
       padding: 14px 16px;
       flex: 0 0 auto;
     }
-    .summary-label {
+    .document-label {
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
       margin-bottom: 6px;
     }
-    .summary-value {
-      font-size: 18px;
+    .document-id {
+      font-size: 24px;
       font-weight: 700;
+      line-height: 1.1;
       margin-bottom: 10px;
     }
-    .summary-meta {
-      display: flex;
-      flex-wrap: wrap;
+    .document-date {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .info-card,
+    .section,
+    .notes-box,
+    .totals-box {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+    .info-card {
+      padding: 14px 16px;
+    }
+    .info-card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+    .meta-list {
+      display: grid;
       gap: 8px;
-      align-items: center;
-      font-size: 11px;
-      color: var(--muted);
     }
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
+    .meta-row {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
       gap: 10px;
+      align-items: start;
       font-size: 11px;
+    }
+    .meta-term {
       color: var(--muted);
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-    .document-intro {
-      margin-bottom: 18px;
-      padding: 2px 2px 0;
+    .meta-value {
+      color: var(--ink);
+      word-break: break-word;
     }
-    .document-partner {
-      font-size: 21px;
+    .supplier-name {
+      font-size: 18px;
       line-height: 1.2;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 6px;
-    }
-    .document-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.5;
-    }
-    .meta-chip {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 4px 10px;
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-      white-space: nowrap;
-    }
-    .badge-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 8px;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      border: 1px solid transparent;
-    }
-    .badge.status {
-      background: var(--accent-soft);
-      color: #92400e;
-      border-color: #f6d98f;
-    }
-    .badge.payment {
-      background: var(--violet-soft);
-      color: var(--violet);
-      border-color: #ddd6fe;
-    }
-    .badge.paid {
-      background: var(--success-soft);
-      color: var(--success);
-      border-color: #bbf7d0;
-    }
-    .badge.production {
-      background: var(--slate-soft);
-      color: var(--slate);
-      border-color: #d7dee8;
+      margin-bottom: 12px;
     }
     .section {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      overflow: hidden;
-      background: var(--surface);
       margin-bottom: 16px;
-      break-inside: avoid;
     }
     .section-header {
       display: flex;
@@ -419,9 +383,11 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
-    .section-hint {
+    .section-mode {
       font-size: 10px;
       color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
     .table-wrap { padding: 4px 0 0; }
     table {
@@ -464,23 +430,21 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
       color: var(--muted);
       font-style: italic;
     }
-    .footer-grid {
+    .summary-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr);
       gap: 14px;
-      align-items: start;
+      align-items: stretch;
       margin-bottom: 16px;
     }
     .notes-box,
-    .signatures-box,
     .totals-box {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
       padding: 14px 16px;
-      break-inside: avoid;
     }
-    .notes-box { min-height: 128px; }
+    .notes-box { min-height: 96px; }
     .box-title {
       font-size: 11px;
       text-transform: uppercase;
@@ -493,10 +457,12 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
       white-space: pre-wrap;
       word-break: break-word;
       color: var(--ink);
+      flex: 1;
     }
     .notes-empty {
       color: var(--muted);
       font-style: italic;
+      flex: 1;
     }
     .totals-box {
       background: var(--surface-soft);
@@ -529,26 +495,9 @@ function htmlDocumentoOc(titulo: string, conteudo: string) {
       color: var(--success);
       font-size: 18px;
     }
-    .signatures-box {
-      padding-bottom: 10px;
-    }
-    .signature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-      margin-top: 28px;
-    }
-    .signature-line {
-      border-top: 1px solid var(--line-strong);
-      padding-top: 8px;
-      text-align: center;
-      font-size: 11px;
-      color: var(--muted);
-      min-height: 38px;
-    }
     .document-footer {
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 8px;
+      padding-top: 10px;
       border-top: 1px solid var(--line);
       display: flex;
       justify-content: space-between;
@@ -574,10 +523,25 @@ function labelModoExportacaoOc(modo: ModoExportacaoOc) {
   return modo === "producao" ? "Produção" : "Fornecedor";
 }
 
-function descricaoModoExportacaoOc(modo: ModoExportacaoOc) {
-  return modo === "producao"
-    ? "Documento operacional sem preços"
-    : "Documento comercial com preços";
+function formatarTelefoneOc(telefone: string | null | undefined) {
+  const digitos = (telefone ?? "").replace(/\D/g, "");
+  if (!digitos) return "";
+  if (digitos.length === 11)
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+  if (digitos.length === 10)
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  return telefone?.trim() ?? "";
+}
+
+function formatarCidadeUfOc(cidade: string | null | undefined, uf: string | null | undefined) {
+  const cidadeLimpa = cidade?.trim() ?? "";
+  const ufLimpa = uf?.trim() ?? "";
+  if (cidadeLimpa && ufLimpa) return `${cidadeLimpa}/${ufLimpa}`;
+  return cidadeLimpa || ufLimpa;
+}
+
+function identificacaoPrincipalOc(oc: OrdemCompra) {
+  return oc.sequencial_fornecedor != null ? `#${oc.sequencial_fornecedor}` : oc.codigo;
 }
 
 function ocBodyHtml(
@@ -592,10 +556,17 @@ function ocBodyHtml(
   const descontoPercentual = percentualPorDesconto(subtotal, desconto);
   const exibirValores = modo === "fornecedor";
   const geradoEm = new Date().toLocaleString("pt-BR");
-  const identificacao = `${oc.sequencial_fornecedor != null ? `#${oc.sequencial_fornecedor} · ` : ""}${oc.codigo}`;
+  const identificacao = identificacaoPrincipalOc(oc);
   const fornecedorNome = oc.fornecedor?.nome?.trim() ?? "";
-  const formaPagamento = labelFormaPagamentoOc(oc.forma_pagamento);
   const observacao = oc.observacao?.trim() ?? "";
+  const fornecedorDocumento = oc.fornecedor?.documento
+    ? formatarDocumento(
+        oc.fornecedor.tipo_documento === "cpf" ? "cpf" : "cnpj",
+        oc.fornecedor.documento,
+      )
+    : "";
+  const fornecedorCidadeUf = formatarCidadeUfOc(oc.fornecedor?.cidade, oc.fornecedor?.uf);
+  const fornecedorTelefone = formatarTelefoneOc(oc.fornecedor?.telefone);
   const linhasItens =
     itens.length > 0
       ? itens
@@ -626,33 +597,59 @@ function ocBodyHtml(
           <td colspan="${exibirValores ? 5 : 3}" class="item-empty">Nenhum item registrado nesta ordem de compra.</td>
         </tr>`;
 
-  const metaCabecalho = [
-    fmtData(oc.data_geracao),
-    oc.forma_pagamento ? formaPagamento : null,
-    oc.pedido_codigo
-      ? `${oc.pedido_sequencial != null ? `#${oc.pedido_sequencial} · ` : ""}${oc.pedido_codigo}`
-      : null,
-    oc.cliente_nome?.trim() ? oc.cliente_nome.trim() : null,
+  const linhasInfoOrdem = [
+    { label: "Emissão", value: fmtData(oc.data_geracao) },
+    { label: "Fornecedor", value: fornecedorNome || "Não informado" },
+    {
+      label: "Pedido origem",
+      value: oc.pedido_codigo
+        ? `${oc.pedido_sequencial != null ? `#${oc.pedido_sequencial} · ` : ""}${oc.pedido_codigo}`
+        : "—",
+    },
+    { label: "Cliente", value: oc.cliente_nome?.trim() || "—" },
+    {
+      label: "Pagamento",
+      value: oc.forma_pagamento ? labelFormaPagamentoOc(oc.forma_pagamento) : "—",
+    },
   ]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => `<span class="meta-chip">${escapeHtml(value)}</span>`)
+    .map(
+      (linha) => `
+        <div class="meta-row">
+          <div class="meta-term">${escapeHtml(linha.label)}</div>
+          <div class="meta-value">${escapeHtml(linha.value)}</div>
+        </div>`,
+    )
     .join("");
 
-  const summaryMeta = [fmtData(oc.data_geracao), oc.pago ? "Pago" : null]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => `<span>${escapeHtml(value)}</span>`)
-    .join('<span aria-hidden="true">·</span>');
-
-  const badges = `
-    <div class="badge-row">
-      <span class="badge production">${escapeHtml(labelModoExportacaoOc(modo))}</span>
-      ${oc.pago ? `<span class="badge paid">Pago</span>` : ""}
-    </div>`;
+  const linhasFornecedor = [
+    oc.fornecedor?.razao_social?.trim()
+      ? { label: "Razão social", value: oc.fornecedor.razao_social.trim() }
+      : null,
+    fornecedorDocumento ? { label: "Documento", value: fornecedorDocumento } : null,
+    fornecedorCidadeUf ? { label: "Cidade / UF", value: fornecedorCidadeUf } : null,
+    fornecedorTelefone ? { label: "Telefone", value: fornecedorTelefone } : null,
+  ]
+    .filter(
+      (
+        linha,
+      ): linha is {
+        label: string;
+        value: string;
+      } => Boolean(linha?.value),
+    )
+    .map(
+      (linha) => `
+        <div class="meta-row">
+          <div class="meta-term">${escapeHtml(linha.label)}</div>
+          <div class="meta-value">${escapeHtml(linha.value)}</div>
+        </div>`,
+    )
+    .join("");
 
   const resumoFinanceiro = exibirValores
     ? `
     <div class="totals-box">
-      <div class="box-title">Resumo financeiro</div>
+      <div class="box-title">Totais</div>
       <div class="totals-row">
         <span>Subtotal</span>
         <strong>${escapeHtml(fmt(subtotal))}</strong>
@@ -666,46 +663,65 @@ function ocBodyHtml(
           : ""
       }
       <div class="totals-total">
-        <span>Total final</span>
+        <span>Total</span>
         <span class="amount">${escapeHtml(fmt(total))}</span>
       </div>
     </div>`
     : "";
 
-  const observacoesHtml = observacao
-    ? `<div class="notes-content">${escapeHtml(observacao)}</div>`
-    : `<div class="notes-empty">Sem observações registradas para esta ordem de compra.</div>`;
+  const exibirObservacoes = exibirValores || Boolean(observacao);
+  const observacoesHtml = exibirObservacoes
+    ? `
+    <div class="notes-box">
+      <div class="box-title">Observações</div>
+      ${
+        observacao
+          ? `<div class="notes-content">${escapeHtml(observacao)}</div>`
+          : `<div class="notes-empty">Sem observações registradas para esta ordem de compra.</div>`
+      }
+    </div>`
+    : "";
+
+  const resumoRodape = [observacoesHtml, resumoFinanceiro].filter(Boolean).join("");
 
   return `
   <section class="oc-page">
-    <div class="top-rule"></div>
     <header class="header">
       <div class="brand">
         ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Alma Campeira" />` : ""}
         <div class="brand-copy">
-          <div class="eyebrow">${escapeHtml(descricaoModoExportacaoOc(modo))}</div>
+          <div class="brand-name">Alma Campeira</div>
           <h1>Ordem de Compra</h1>
-          <div class="subtitle">Alma Campeira · Cutelaria Artesanal</div>
+          <div class="subtitle">Documento comercial para conferência e envio ao fornecedor</div>
         </div>
       </div>
-      <aside class="summary-card">
-        <div class="summary-value">${escapeHtml(identificacao)}</div>
-        ${summaryMeta ? `<div class="summary-meta">${summaryMeta}</div>` : ""}
+      <aside class="document-card">
+        <div class="document-label">Pedido</div>
+        <div class="document-id">${escapeHtml(identificacao)}</div>
+        <div class="document-date">Emitido em ${escapeHtml(fmtData(oc.data_geracao))}</div>
       </aside>
     </header>
 
-    <section class="document-intro">
-      ${fornecedorNome ? `<div class="document-partner">${escapeHtml(fornecedorNome)}</div>` : ""}
-      ${metaCabecalho ? `<div class="document-meta">${metaCabecalho}</div>` : ""}
+    <section class="info-grid">
+      <div class="info-card">
+        <div class="info-card-title">Informações da ordem</div>
+        <div class="meta-list">
+          ${linhasInfoOrdem}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">Fornecedor</div>
+        <div class="supplier-name">${escapeHtml(fornecedorNome || "Fornecedor não informado")}</div>
+        <div class="meta-list">
+          ${linhasFornecedor || `<div class="notes-empty">Sem dados adicionais do fornecedor.</div>`}
+        </div>
+      </div>
     </section>
 
     <section class="section">
       <div class="section-header">
-        <div>
-          <div class="section-title">Itens da compra</div>
-          <div class="section-hint">Conferência comercial e operacional da ordem</div>
-        </div>
-        ${badges}
+        <div class="section-title">Itens da compra</div>
+        <div class="section-mode">${escapeHtml(labelModoExportacaoOc(modo))}</div>
       </div>
       <div class="table-wrap">
         <table>
@@ -729,25 +745,10 @@ function ocBodyHtml(
       </div>
     </section>
 
-    <section class="footer-grid">
-      <div class="notes-box">
-        <div class="box-title">Observações</div>
-        ${observacoesHtml}
-      </div>
-      ${exibirValores ? resumoFinanceiro : ""}
-    </section>
-
-    <section class="signatures-box">
-      <div class="box-title">Conferência e validação</div>
-      <div class="signature-grid">
-        <div class="signature-line">Solicitante</div>
-        <div class="signature-line">Fornecedor</div>
-        <div class="signature-line">Recebimento / Conferência</div>
-      </div>
-    </section>
+    ${resumoRodape ? `<section class="summary-grid">${resumoRodape}</section>` : ""}
 
     <footer class="document-footer">
-      <span>ERP Alma Campeira · Ordem de Compra ${escapeHtml(oc.codigo)} · ${escapeHtml(labelModoExportacaoOc(modo))}</span>
+      <span>Alma Campeira</span>
       <span>Emitido em ${escapeHtml(geradoEm)}</span>
     </footer>
   </section>`;
@@ -2113,14 +2114,19 @@ function OcCriarModal({
       })),
     [agrupadoresDisponiveis],
   );
+  const fornecedoresCompativeis = useMemo(
+    () =>
+      fornecedores.filter((fornecedor) => fornecedorCompativelComTipo(fornecedor, tipoMaterial)),
+    [fornecedores, tipoMaterial],
+  );
   const opcoesFornecedorOc = useMemo(
     () =>
-      fornecedores.map((fornecedor) => ({
+      fornecedoresCompativeis.map((fornecedor) => ({
         value: fornecedor.id,
         label: fornecedor.nome,
         searchText: `${fornecedor.nome} ${fornecedor.cidade ?? ""} ${fornecedor.uf ?? ""}`,
       })),
-    [fornecedores],
+    [fornecedoresCompativeis],
   );
 
   useEffect(() => {
@@ -2185,7 +2191,13 @@ function OcCriarModal({
       return;
     }
     setErro("");
-    setTipoMaterial((nextTipo as TipoMaterial) || "");
+    const tipoNormalizado = (nextTipo as TipoMaterial) || "";
+    setTipoMaterial(tipoNormalizado);
+    setFornecedorId((current) => {
+      if (!current) return current;
+      const fornecedorAtual = fornecedores.find((fornecedor) => fornecedor.id === current);
+      return fornecedorCompativelComTipo(fornecedorAtual, tipoNormalizado) ? current : "";
+    });
     setAgrupador("");
   }
 
@@ -2355,29 +2367,13 @@ function OcCriarModal({
             onChange={setFornecedorId}
             disabled={carregando}
             options={opcoesFornecedorOc}
-            placeholder="Sem fornecedor"
+            placeholder={tipoMaterial ? "Sem fornecedor compatível" : "Sem fornecedor"}
+            emptyMessage={
+              tipoMaterial
+                ? "Nenhum fornecedor vinculado a este tipo de material"
+                : "Nenhum fornecedor encontrado"
+            }
             showThumbnails={false}
-          />
-        </div>
-
-        <div className="space-y-1.5 shrink-0">
-          <label
-            className="text-xs font-semibold uppercase tracking-wide"
-            style={{ color: "var(--ac-muted)" }}
-          >
-            Observações (opcional)
-          </label>
-          <textarea
-            value={observacao}
-            onChange={(e) => setObservacao(e.target.value)}
-            rows={2}
-            className="w-full rounded-lg px-3 py-2 text-sm resize-y min-h-[3rem]"
-            style={{
-              border: "1px solid var(--ac-border)",
-              background: "var(--ac-bg)",
-              color: "var(--ac-text)",
-            }}
-            placeholder="Notas internas sobre esta OC…"
           />
         </div>
 
@@ -2530,6 +2526,28 @@ function OcCriarModal({
               </tbody>
             </table>
           </div>
+
+          <div className="space-y-1.5 shrink-0">
+            <label
+              className="text-xs font-semibold uppercase tracking-wide"
+              style={{ color: "var(--ac-muted)" }}
+            >
+              Observações (opcional)
+            </label>
+            <textarea
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg px-3 py-2 text-sm resize-y min-h-[3rem]"
+              style={{
+                border: "1px solid var(--ac-border)",
+                background: "var(--ac-bg)",
+                color: "var(--ac-text)",
+              }}
+              placeholder="Notas internas sobre esta OC…"
+            />
+          </div>
+
           <div className="space-y-1.5 shrink-0">
             <label
               className="text-xs font-semibold uppercase tracking-wide"

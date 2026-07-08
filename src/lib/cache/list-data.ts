@@ -475,7 +475,19 @@ function ordensCompraCache(userId: string) {
       const rows = await prisma.ordemCompra.findMany({
         orderBy: { createdAt: "desc" },
         include: {
-          fornecedor: { select: { id: true, nome: true } },
+          fornecedor: {
+            select: {
+              id: true,
+              nome: true,
+              telefone: true,
+              email: true,
+              tipoDocumento: true,
+              documento: true,
+              cidade: true,
+              uf: true,
+              razaoSocial: true,
+            },
+          },
           ultimaAlteracaoUsuario: { select: { id: true, nome: true } },
           itens: {
             include: {
@@ -528,7 +540,19 @@ function ordensCompraCache(userId: string) {
             ? { id: row.ultimaAlteracaoUsuario.id, nome: row.ultimaAlteracaoUsuario.nome }
             : null,
           created_at: row.createdAt.toISOString(),
-          fornecedor: row.fornecedor ? { id: row.fornecedor.id, nome: row.fornecedor.nome } : null,
+          fornecedor: row.fornecedor
+            ? {
+                id: row.fornecedor.id,
+                nome: row.fornecedor.nome,
+                telefone: row.fornecedor.telefone,
+                email: row.fornecedor.email,
+                tipo_documento: row.fornecedor.tipoDocumento,
+                documento: row.fornecedor.documento,
+                cidade: row.fornecedor.cidade,
+                uf: row.fornecedor.uf,
+                razao_social: row.fornecedor.razaoSocial,
+              }
+            : null,
           pedido_id: pedido?.id ?? null,
           pedido_codigo: pedido?.codigo ?? null,
           pedido_sequencial: pedido?.sequencial ? Number(pedido.sequencial) : null,

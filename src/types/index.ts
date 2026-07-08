@@ -511,7 +511,18 @@ export type OrdemCompra = {
   ultima_alteracao_em?: string | null;
   ultima_alteracao_usuario?: { id: string; nome: string } | null;
   created_at: string;
-  fornecedor?: Pick<Fornecedor, "id" | "nome"> | null;
+  fornecedor?: Pick<
+    Fornecedor,
+    | "id"
+    | "nome"
+    | "telefone"
+    | "email"
+    | "tipo_documento"
+    | "documento"
+    | "cidade"
+    | "uf"
+    | "razao_social"
+  > | null;
   // Derivados do join fila_reposicao → pedidos → clientes. Null para OCs
   // manuais (criadas via "Nova ordem de compra") que não têm pedido de origem.
   pedido_id?: string | null;
