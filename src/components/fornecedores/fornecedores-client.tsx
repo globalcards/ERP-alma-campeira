@@ -136,7 +136,7 @@ export function FornecedoresClient({
         >
           {([{ value: "todos", label: "Todos" }] as { value: FiltroTipo; label: string }[])
             .concat(
-              TIPOS_MATERIAL.filter((tipo) => tipo.value !== "outro").map((tipo) => ({
+              TIPOS_MATERIAL.map((tipo) => ({
                 value: tipo.value,
                 label: tipo.label,
               })),

@@ -1,7 +1,7 @@
 /** CNPJ (padrão em PJ) ou CPF — armazenado só com dígitos em `documento`. */
 export type TipoDocumento = "cnpj" | "cpf";
 
-export type TipoMaterial = "lamina" | "cabo" | "bainha" | "latao" | "outro";
+export type TipoMaterial = "lamina" | "cabo" | "bainha" | "latao";
 
 export type TipoOpcaoMaterial = "aco" | "cabo" | "botao" | "carimbo" | "bainha";
 
@@ -10,7 +10,6 @@ export const TIPOS_MATERIAL: { value: TipoMaterial; label: string }[] = [
   { value: "cabo", label: "Cabos" },
   { value: "bainha", label: "Bainhas" },
   { value: "latao", label: "Latão" },
-  { value: "outro", label: "Outros" },
 ];
 
 export const TIPOS_OPCAO_MATERIAL: { value: TipoOpcaoMaterial; label: string }[] = [

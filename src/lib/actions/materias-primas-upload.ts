@@ -251,6 +251,7 @@ export async function salvarMPComFoto(formData: FormData) {
 
   if (!sku) throw new Error("SKU é obrigatório.");
   if (!nome) throw new Error("Nome é obrigatório.");
+  if (!tipo_material) throw new Error("Tipo de material é obrigatório.");
   if (!Number.isFinite(preco_custo)) throw new Error("Preço de custo inválido.");
 
   const isEdit = typeof id === "string" && id.length > 0;

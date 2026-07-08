@@ -35,7 +35,7 @@ function getGrupoNome(mp: MateriaPrima): string {
   if (mp.tipo_material === "bainha") {
     return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
   }
-  return "Outros materiais";
+  return "Materiais de latão";
 }
 
 function getGrupoRotulo(tipoMaterial: TipoMaterial): string {

@@ -330,6 +330,9 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
     throw new Error(`${prefixo}tipo de material é obrigatório.`);
   }
   const tipo_material = normalizarTipoMaterial(tipoRaw);
+  if (!tipo_material) {
+    throw new Error(`${prefixo}tipo de material é obrigatório.`);
+  }
   const preco_custo = Number(input.preco_custo);
   const estoque_atual = Number(input.estoque_atual || 0);
   const estoque_minimo = Number(input.estoque_minimo || 0);

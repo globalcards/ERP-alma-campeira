@@ -42,17 +42,18 @@ const ERRO_TIPO_MATERIAL_MISTURADO =
 
 function validarTiposMateriaisUnicosOC(
   tiposMateriais: Iterable<TipoMaterial | string | null | undefined>,
-): TipoMaterial {
+): TipoMaterial | null {
   const unicos = new Set<TipoMaterial>()
   for (const tipoMaterial of tiposMateriais) {
-    unicos.add(normalizarTipoMaterial(tipoMaterial))
+    const tipoNormalizado = normalizarTipoMaterial(tipoMaterial)
+    if (tipoNormalizado) unicos.add(tipoNormalizado)
   }
 
   if (unicos.size > 1) {
     throw new Error(ERRO_TIPO_MATERIAL_MISTURADO)
   }
 
-  return unicos.values().next().value ?? 'outro'
+  return unicos.values().next().value ?? null
 }
 
 function normalizarStatusEPago(row: { status?: unknown; pago?: unknown }): { status: StatusOC; pago: boolean } {
@@ -600,6 +601,9 @@ export async function criarItemOrdemCompra(
 
   const tipoMaterialAtualOC = await getTipoMaterialEfetivoOC(ordem_compra_id)
   const tipoMaterialNovo = normalizarTipoMaterial(mp.tipoMaterial)
+  if (!tipoMaterialNovo) {
+    throw new Error('A matéria-prima selecionada possui um tipo de material inválido.')
+  }
   if (tipoMaterialAtualOC && tipoMaterialAtualOC !== tipoMaterialNovo) {
     throw new Error(
       `Esta ordem de compra aceita apenas itens do tipo "${labelTipoMaterial(tipoMaterialAtualOC)}".`,

@@ -121,7 +121,7 @@ function getAgrupamentoMeta(tipoMaterial: TipoMaterial): {
       return {
         labelSingular: "Item",
         labelPlural: "Lista",
-        fallback: "Outros materiais",
+        fallback: "Materiais de latão",
       };
   }
 }
@@ -136,7 +136,7 @@ function getGrupoMateriaPrima(mp: MateriaPrima): string {
   if (mp.tipo_material === "bainha") {
     return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
   }
-  return "Outros materiais";
+  return "Materiais de latão";
 }
 
 function formatDetalhesTipo(mp: MateriaPrima): string {
@@ -582,7 +582,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [fotoLightboxAlt, setFotoLightboxAlt] = useState<string>("");
   const [selectedTipoMaterial, setSelectedTipoMaterial] = useState<TipoMaterial>(() => {
     return (
-      (["lamina", "cabo", "bainha", "latao", "outro"] as const).find((tipo) =>
+      (["lamina", "cabo", "bainha", "latao"] as const).find((tipo) =>
         initialMP.some((mp) => mp.tipo_material === tipo),
       ) ?? "lamina"
     );
@@ -593,15 +593,13 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const tipos = useMemo<TipoResumo[]>(() => {
-    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao", "outro"];
+    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao"];
     const counts = new Map<TipoMaterial, number>();
     for (const tipo of ordem) counts.set(tipo, 0);
     for (const mp of materiasPrimas) {
       counts.set(mp.tipo_material, (counts.get(mp.tipo_material) ?? 0) + 1);
     }
-    return ordem
-      .map((tipo) => ({ tipo, quantidade: counts.get(tipo) ?? 0 }))
-      .filter((item) => item.quantidade > 0 || item.tipo !== "outro");
+    return ordem.map((tipo) => ({ tipo, quantidade: counts.get(tipo) ?? 0 }));
   }, [materiasPrimas]);
 
   const tipoMaterialAtivo = tipos.some((tipo) => tipo.tipo === selectedTipoMaterial)
@@ -614,7 +612,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   );
 
   const agrupamentoMeta = useMemo(() => getAgrupamentoMeta(tipoMaterialAtivo), [tipoMaterialAtivo]);
-  const agrupaPorContexto = tipoMaterialAtivo !== "outro" && tipoMaterialAtivo !== "latao";
+  const agrupaPorContexto = tipoMaterialAtivo !== "latao";
 
   const grupos = useMemo(() => {
     const counts = new Map<string, number>();
@@ -736,7 +734,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
 
   const selecionarTipoMaterial = useCallback((tipoMaterial: TipoMaterial) => {
     setSelectedTipoMaterial(tipoMaterial);
-    setViewMode(tipoMaterial === "outro" || tipoMaterial === "latao" ? "todos" : "categorias");
+    setViewMode(tipoMaterial === "latao" ? "todos" : "categorias");
     setSelectedGroup(null);
     setBusca("");
     setEditando(null);

@@ -85,7 +85,7 @@ function obterAgrupadorMaterial(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") return mp.lamina?.aco?.trim() || "Sem aço configurado";
   if (mp.tipo_material === "cabo") return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
   if (mp.tipo_material === "bainha") return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
-  return "Outros materiais";
+  return "Materiais de latão";
 }
 
 function obterRotuloAgrupador(tipoMaterial: TipoMaterial | ""): string {
@@ -100,7 +100,8 @@ function fornecedorCompativelComTipo(
   tipoMaterial: TipoMaterial | "",
 ) {
   if (!tipoMaterial) return true;
-  return (fornecedor?.tipos_materiais ?? []).includes(tipoMaterial);
+  const tipos = fornecedor?.tipos_materiais ?? [];
+  return tipos.length === 0 || tipos.includes(tipoMaterial);
 }
 
 type ColunaEspecificaMaterial = {

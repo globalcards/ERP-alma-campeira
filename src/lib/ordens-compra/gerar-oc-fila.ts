@@ -87,7 +87,7 @@ export async function gerarOCsDeFilaItens(
       const quantidade = item.quantidadeSugerida.add(item.quantidadeAdicional)
       if (quantidade.lte(0)) continue
 
-      const tipoMaterial = (mp.tipoMaterial ?? 'outro').trim()
+      const tipoMaterial = mp.tipoMaterial.trim()
       const fornecedorKey = mp.fornecedorId ?? '__sem_fornecedor__'
       const chave = `${tipoMaterial}::${fornecedorKey}`
       const grupo = grupos.get(chave) ?? {

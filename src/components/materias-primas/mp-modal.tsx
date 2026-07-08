@@ -224,7 +224,7 @@ const BULK_ROWS_STEP = 5;
 const formVazio: Form = {
   sku: "",
   nome: "",
-  tipo_material: "outro",
+  tipo_material: "lamina",
   fornecedor_id: "",
   preco_custo: "",
   estoque_atual: "0",
@@ -263,7 +263,7 @@ function getInitialForm(
 
   return {
     ...formVazio,
-    tipo_material: tipoMaterialContext ?? "outro",
+    tipo_material: tipoMaterialContext ?? "lamina",
   };
 }
 
@@ -288,6 +288,11 @@ function getTipoMaterialMeta(tipoMaterial: TipoMaterial) {
       return {
         singular: "Bainha",
         descricao: "Cadastre polegadas, modelo e botão para materiais de bainha.",
+      };
+    case "latao":
+      return {
+        singular: "Latão",
+        descricao: "Cadastre os dados base do material de latão sem campos contextuais adicionais.",
       };
     default:
       return {
@@ -930,7 +935,7 @@ export function MPModal({
                     { value: "lamina", label: "Lâminas" },
                     { value: "cabo", label: "Cabos" },
                     { value: "bainha", label: "Bainhas" },
-                    { value: "outro", label: "Outros" },
+                    { value: "latao", label: "Latão" },
                   ]}
                 />
               </div>

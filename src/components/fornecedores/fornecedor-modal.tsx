@@ -361,7 +361,7 @@ export function FornecedorModal({ open, onClose, editando, onSaved }: Props) {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {TIPOS_MATERIAL.filter((tipo) => tipo.value !== 'outro').map((tipo) => {
+            {TIPOS_MATERIAL.map((tipo) => {
               const checked = form.tipos_materiais.includes(tipo.value)
               return (
                 <label
