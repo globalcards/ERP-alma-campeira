@@ -125,12 +125,16 @@ function mapMateriaPrimaRow(row: {
     sku: row.sku,
     nome: row.nome,
     categoria: "",
+    tipo_material: "outro",
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
     preco_custo: numberFrom(row.precoCusto),
     estoque_atual: numberFrom(row.estoqueAtual),
     estoque_minimo: numberFrom(row.estoqueMinimo),
     created_at: row.createdAt.toISOString(),
+    lamina: null,
+    cabo: null,
+    bainha: null,
   };
 }
 

@@ -19,6 +19,21 @@ enum TipoDocumento {
   cpf
 }
 
+enum TipoMaterial {
+  lamina
+  cabo
+  bainha
+  outro
+}
+
+enum TipoOpcaoMaterial {
+  aco
+  cabo
+  botao
+  carimbo
+  bainha
+}
+
 enum Modulo {
   dashboard
   metricas
@@ -144,11 +159,11 @@ model Cliente {
 }
 
 model Fornecedor {
-  id                  String         @id @default(uuid()) @db.Uuid
+  id                  String                   @id @default(uuid()) @db.Uuid
   nome                String
   telefone            String?
   email               String?
-  tipoDocumento       TipoDocumento  @default(cnpj) @map("tipo_documento")
+  tipoDocumento       TipoDocumento            @default(cnpj) @map("tipo_documento")
   documento           String?
   cep                 String?
   logradouro          String?
@@ -157,14 +172,15 @@ model Fornecedor {
   bairro              String?
   cidade              String?
   uf                  String?
-  razaoSocial         String?        @map("razao_social")
+  razaoSocial         String?                  @map("razao_social")
   ie                  String?
-  codigoMunicipioIbge String?        @map("codigo_municipio_ibge")
-  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  codigoMunicipioIbge String?                  @map("codigo_municipio_ibge")
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   boletos             Boleto[]
   ordensCompra        OrdemCompra[]
   materiasPrimas      MateriaPrima[]
   consumiveis         Consumivel[]
+  tiposMaterial       FornecedorTipoMaterial[]
 
   @@map("fornecedores")
 }
@@ -280,6 +296,7 @@ model MateriaPrima {
   sku                  String
   nome                 String
   categoria            String                @default("")
+  tipoMaterial         TipoMaterial          @default(outro) @map("tipo_material")
   fornecedorId         String?               @map("fornecedor_id") @db.Uuid
   fotoUrl              String?               @map("foto_url")
   precoCusto           Decimal               @default(0) @map("preco_custo") @db.Decimal(14, 4)
@@ -291,9 +308,52 @@ model MateriaPrima {
   filaItens            FilaReposicaoItem[]
   ordemCompraItens     OrdemCompraItem[]
   movimentacoesEstoque MovimentacaoEstoque[]
+  lamina               MaterialLamina?
+  cabo                 MaterialCabo?
+  bainha               MaterialBainha?
 
   @@unique([categoria, sku], map: "materias_primas_categoria_sku_key")
+  @@index([tipoMaterial], map: "idx_materias_primas_tipo_material")
   @@map("materias_primas")
+}
+
+model FornecedorTipoMaterial {
+  id           String       @id @default(uuid()) @db.Uuid
+  fornecedorId String       @map("fornecedor_id") @db.Uuid
+  tipoMaterial TipoMaterial @map("tipo_material")
+  fornecedor   Fornecedor   @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@unique([fornecedorId, tipoMaterial], map: "fornecedor_tipos_material_fornecedor_tipo_key")
+  @@index([tipoMaterial], map: "idx_fornecedor_tipos_material_tipo")
+  @@map("fornecedor_tipos_material")
+}
+
+model MaterialLamina {
+  materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
+  aco            String?
+  carimbo        String?
+  materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
+
+  @@map("materiais_laminas")
+}
+
+model MaterialCabo {
+  materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
+  tipo           String?
+  cor            String?
+  materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
+
+  @@map("materiais_cabos")
+}
+
+model MaterialBainha {
+  materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
+  polegadas      String?
+  modelo         String?
+  botao          String?
+  materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
+
+  @@map("materiais_bainhas")
 }
 
 model FacaMateriaPrima {
@@ -482,6 +542,19 @@ model CategoriaMateriaPrima {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("categorias_materia_prima")
+}
+
+model OpcaoMaterial {
+  id        String            @id @default(uuid()) @db.Uuid
+  tipo      TipoOpcaoMaterial
+  nome      String
+  ordem     Int               @default(0)
+  ativo     Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tipo, nome], map: "opcoes_material_tipo_nome_key")
+  @@index([tipo, ativo, ordem], map: "idx_opcoes_material_tipo_ativo_ordem")
+  @@map("opcoes_material")
 }
 
 model CategoriaConsumivel {

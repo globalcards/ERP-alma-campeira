@@ -5,30 +5,47 @@ import Link from "next/link";
 import { criarMateriasPrimasEmLote } from "@/lib/actions/materias-primas";
 import { salvarMPComFoto } from "@/lib/actions/materias-primas-upload";
 import { getOptimizedImageUrl } from "@/lib/images";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import type { CategoriaMateriaPrimaDB, Fornecedor, MateriaPrima } from "@/types";
+import type {
+  CategoriaMateriaPrimaDB,
+  Fornecedor,
+  MateriaPrima,
+  OpcoesMateriaisPorTipo,
+  TipoMaterial,
+} from "@/types";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   fornecedores: Fornecedor[];
   categoriasMateriaPrima: CategoriaMateriaPrimaDB[];
+  opcoesMateriais: OpcoesMateriaisPorTipo;
   loadingReferencias?: boolean;
   editando?: MateriaPrima | null;
+  tipoMaterialContext?: TipoMaterial | null;
   onSaved?: () => void;
 };
 
 type Form = {
   sku: string;
   nome: string;
+  tipo_material: TipoMaterial;
   categoria: string;
   fornecedor_id: string;
   preco_custo: string;
   estoque_atual: string;
   estoque_minimo: string;
+  lamina_aco: string;
+  lamina_carimbo: string;
+  cabo_tipo: string;
+  cabo_cor: string;
+  bainha_polegadas: string;
+  bainha_modelo: string;
+  bainha_botao: string;
 };
 
 type BulkMode = "single" | "bulk";
@@ -61,33 +78,107 @@ const BULK_ROWS_STEP = 5;
 const formVazio: Form = {
   sku: "",
   nome: "",
+  tipo_material: "outro",
   categoria: "",
   fornecedor_id: "",
   preco_custo: "",
   estoque_atual: "0",
   estoque_minimo: "0",
+  lamina_aco: "",
+  lamina_carimbo: "",
+  cabo_tipo: "",
+  cabo_cor: "",
+  bainha_polegadas: "",
+  bainha_modelo: "",
+  bainha_botao: "",
 };
 
 function getInitialForm(
   editando: MateriaPrima | null | undefined,
   categoriasMateriaPrima: CategoriaMateriaPrimaDB[],
+  tipoMaterialContext?: TipoMaterial | null,
 ): Form {
   if (editando) {
     return {
       sku: editando.sku,
       nome: editando.nome,
+      tipo_material: editando.tipo_material,
       categoria: editando.categoria,
       fornecedor_id: editando.fornecedor_id ?? "",
       preco_custo: String(editando.preco_custo),
       estoque_atual: String(editando.estoque_atual),
       estoque_minimo: String(editando.estoque_minimo),
+      lamina_aco: editando.lamina?.aco ?? "",
+      lamina_carimbo: editando.lamina?.carimbo ?? "",
+      cabo_tipo: editando.cabo?.tipo ?? "",
+      cabo_cor: editando.cabo?.cor ?? "",
+      bainha_polegadas: editando.bainha?.polegadas ?? "",
+      bainha_modelo: editando.bainha?.modelo ?? "",
+      bainha_botao: editando.bainha?.botao ?? "",
     };
   }
 
   return {
     ...formVazio,
+    tipo_material: tipoMaterialContext ?? "outro",
     categoria: categoriasMateriaPrima[0]?.nome ?? "Bainha",
   };
+}
+
+function fornecedorAtendeTipo(fornecedor: Fornecedor, tipoMaterial: TipoMaterial): boolean {
+  const tipos = fornecedor.tipos_materiais ?? [];
+  return tipos.length === 0 || tipos.includes(tipoMaterial);
+}
+
+function getTipoMaterialMeta(tipoMaterial: TipoMaterial) {
+  switch (tipoMaterial) {
+    case "lamina":
+      return {
+        singular: "Lâmina",
+        descricao: "Cadastre aço, carimbo e demais dados específicos da lâmina.",
+      };
+    case "cabo":
+      return {
+        singular: "Cabo",
+        descricao: "Cadastre tipo, cor e demais dados específicos do cabo.",
+      };
+    case "bainha":
+      return {
+        singular: "Bainha",
+        descricao: "Cadastre polegadas, modelo e botão para materiais de bainha.",
+      };
+    default:
+      return {
+        singular: "Material",
+        descricao:
+          "Cadastre os dados base do material. Campos específicos aparecem conforme o tipo.",
+      };
+  }
+}
+
+function getOpcoesSelect(
+  options: OpcoesMateriaisPorTipo[keyof OpcoesMateriaisPorTipo],
+  currentValue: string,
+) {
+  const value = currentValue.trim();
+  if (!value) return options.filter((item) => item.ativo);
+
+  const currentOption = options.find((item) => item.nome === value);
+  if (currentOption) {
+    return options.filter((item) => item.ativo || item.nome === value);
+  }
+
+  return [
+    {
+      id: `legacy-${value}`,
+      nome: value,
+      ativo: false,
+      ordem: Number.MAX_SAFE_INTEGER,
+      tipo: options[0]?.tipo ?? "aco",
+      created_at: "",
+    },
+    ...options.filter((item) => item.ativo),
+  ];
 }
 
 function createBulkRow(): BulkRow {
@@ -165,11 +256,15 @@ export function MPModal({
   onClose,
   fornecedores,
   categoriasMateriaPrima,
+  opcoesMateriais,
   loadingReferencias = false,
   editando,
+  tipoMaterialContext,
   onSaved,
 }: Props) {
-  const [form, setForm] = useState<Form>(() => getInitialForm(editando, categoriasMateriaPrima));
+  const [form, setForm] = useState<Form>(() =>
+    getInitialForm(editando, categoriasMateriaPrima, tipoMaterialContext),
+  );
   const [modo, setModo] = useState<BulkMode>("single");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => createBulkRows());
   const [erro, setErro] = useState("");
@@ -198,6 +293,17 @@ export function MPModal({
     };
   }, [fotoPreview]);
 
+  useEffect(() => {
+    if (!open) return;
+    setForm(getInitialForm(editando, categoriasMateriaPrima, tipoMaterialContext));
+    setModo("single");
+    setBulkRows(createBulkRows());
+    setErro("");
+    setFotoFile(null);
+    setFotoPreview("");
+    setFotoDragActive(false);
+  }, [open, editando, categoriasMateriaPrima, tipoMaterialContext]);
+
   function setFotoFromFile(file: File | null) {
     setFotoFile(file);
     if (file) setFotoPreview(URL.createObjectURL(file));
@@ -216,6 +322,23 @@ export function MPModal({
 
   function set(field: keyof Form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function setTipoMaterial(value: TipoMaterial) {
+    setForm((current) => {
+      const fornecedorSelecionado = current.fornecedor_id
+        ? fornecedores.find((fornecedor) => fornecedor.id === current.fornecedor_id)
+        : null;
+
+      return {
+        ...current,
+        tipo_material: value,
+        fornecedor_id:
+          fornecedorSelecionado && !fornecedorAtendeTipo(fornecedorSelecionado, value)
+            ? ""
+            : current.fornecedor_id,
+      };
+    });
   }
 
   function setBulkCell(rowId: string, field: BulkField, value: string) {
@@ -272,6 +395,7 @@ export function MPModal({
     const fornecedoresPorNome = new Map(
       fornecedores.map((fornecedor) => [fornecedor.nome.trim().toLowerCase(), fornecedor.id]),
     );
+    const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
 
     const items = bulkRows.flatMap((row, index) => {
       if (isBulkRowEmpty(row)) return [];
@@ -332,6 +456,7 @@ export function MPModal({
           nome,
           sku,
           categoria,
+          tipo_material: tipoMaterialAtual,
           fornecedor_id: fornecedorId,
           preco_custo: preco,
           estoque_atual: estoqueAtual,
@@ -357,6 +482,7 @@ export function MPModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
+    const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
 
     if (editando || modo === "single") {
       const categoriaSelecionada =
@@ -385,11 +511,19 @@ export function MPModal({
         if (editando?.id) fd.append("id", editando.id);
         fd.append("sku", form.sku);
         fd.append("nome", form.nome);
+        fd.append("tipo_material", tipoMaterialAtual);
         fd.append("categoria", categoriaSelecionada);
         fd.append("fornecedor_id", form.fornecedor_id);
         fd.append("preco_custo", String(parseFloat(form.preco_custo)));
         fd.append("estoque_atual", String(parseFloat(form.estoque_atual) || 0));
         fd.append("estoque_minimo", String(parseFloat(form.estoque_minimo) || 0));
+        fd.append("lamina_aco", form.lamina_aco);
+        fd.append("lamina_carimbo", form.lamina_carimbo);
+        fd.append("cabo_tipo", form.cabo_tipo);
+        fd.append("cabo_cor", form.cabo_cor);
+        fd.append("bainha_polegadas", form.bainha_polegadas);
+        fd.append("bainha_modelo", form.bainha_modelo);
+        fd.append("bainha_botao", form.bainha_botao);
         if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
 
         await salvarMPComFoto(fd);
@@ -433,16 +567,27 @@ export function MPModal({
     outline: "none",
   } as const;
 
+  const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
+  const tipoMaterialMeta = getTipoMaterialMeta(tipoMaterialAtual);
+  const fornecedoresCompativeis = fornecedores.filter((fornecedor) =>
+    fornecedorAtendeTipo(fornecedor, tipoMaterialAtual),
+  );
+  const opcoesAco = getOpcoesSelect(opcoesMateriais.aco, form.lamina_aco);
+  const opcoesCarimbo = getOpcoesSelect(opcoesMateriais.carimbo, form.lamina_carimbo);
+  const opcoesCabo = getOpcoesSelect(opcoesMateriais.cabo, form.cabo_tipo);
+  const opcoesBainha = getOpcoesSelect(opcoesMateriais.bainha, form.bainha_modelo);
+  const opcoesBotao = getOpcoesSelect(opcoesMateriais.botao, form.bainha_botao);
+  const tipoFixo = !!tipoMaterialContext;
+  const modalTitle = editando
+    ? `Editar ${tipoMaterialMeta.singular.toLowerCase()} — ${editando.codigo}`
+    : `Novo ${tipoMaterialMeta.singular.toLowerCase()}`;
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={editando ? `Editar — ${editando.codigo}` : "Nova Matéria-Prima"}
-    >
+    <Modal open={open} onClose={onClose} title={modalTitle}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {loadingReferencias && (
           <p className="text-sm" style={{ color: "var(--ac-muted)" }}>
-            Carregando fornecedores e categorias…
+            Carregando fornecedores, categorias e listas configuráveis…
           </p>
         )}
 
@@ -483,11 +628,57 @@ export function MPModal({
                 );
               })}
             </div>
+            {modo === "bulk" && (
+              <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                O lote será criado no contexto de{" "}
+                {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
+              </p>
+            )}
           </div>
         )}
 
         {(editando || modo === "single") && (
           <>
+            <div
+              className="rounded-xl px-4 py-3"
+              style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+            >
+              <p
+                className="text-xs font-semibold uppercase tracking-wide"
+                style={{ color: "var(--ac-muted)" }}
+              >
+                Contexto do material
+              </p>
+              <h3 className="mt-1 text-base font-semibold" style={{ color: "var(--ac-text)" }}>
+                {labelTipoMaterial(tipoMaterialAtual)}
+              </h3>
+              <p className="mt-1 text-sm" style={{ color: "var(--ac-muted)" }}>
+                {tipoMaterialMeta.descricao}
+              </p>
+            </div>
+
+            {!tipoFixo && !editando && (
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="tipo_material"
+                  className="text-sm font-medium"
+                  style={{ color: "var(--ac-text)" }}
+                >
+                  Tipo de material *
+                </label>
+                <Select
+                  id="tipo_material"
+                  value={form.tipo_material}
+                  onChange={(e) => setTipoMaterial(e.target.value as TipoMaterial)}
+                >
+                  <option value="lamina">Lâminas</option>
+                  <option value="cabo">Cabos</option>
+                  <option value="bainha">Bainhas</option>
+                  <option value="outro">Outros</option>
+                </Select>
+              </div>
+            )}
+
             <Input
               id="sku"
               label="SKU *"
@@ -549,6 +740,193 @@ export function MPModal({
               </Select>
             </div>
 
+            {tipoMaterialAtual === "lamina" && (
+              <div
+                className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+                style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+              >
+                <div className="sm:col-span-2">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Dados da lâmina
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Select
+                    id="lamina_aco"
+                    label="Aço"
+                    value={form.lamina_aco}
+                    onChange={(e) => set("lamina_aco", e.target.value)}
+                  >
+                    <option value="">Selecione um aço</option>
+                    {opcoesAco.map((opcao) => (
+                      <option key={opcao.id} value={opcao.nome}>
+                        {opcao.nome}
+                        {!opcao.ativo ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                  {opcoesAco.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      Cadastre opções em{" "}
+                      <Link href="/configuracoes#opcoes-material-aco" onClick={onClose}>
+                        Configurações &gt; Aços
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Select
+                    id="lamina_carimbo"
+                    label="Carimbo"
+                    value={form.lamina_carimbo}
+                    onChange={(e) => set("lamina_carimbo", e.target.value)}
+                  >
+                    <option value="">Selecione um carimbo</option>
+                    {opcoesCarimbo.map((opcao) => (
+                      <option key={opcao.id} value={opcao.nome}>
+                        {opcao.nome}
+                        {!opcao.ativo ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                  {opcoesCarimbo.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      Cadastre opções em{" "}
+                      <Link href="/configuracoes#opcoes-material-carimbo" onClick={onClose}>
+                        Configurações &gt; Carimbos
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tipoMaterialAtual === "cabo" && (
+              <div
+                className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+                style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+              >
+                <div className="sm:col-span-2">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Dados do cabo
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Select
+                    id="cabo_tipo"
+                    label="Tipo"
+                    value={form.cabo_tipo}
+                    onChange={(e) => set("cabo_tipo", e.target.value)}
+                  >
+                    <option value="">Selecione um tipo de cabo</option>
+                    {opcoesCabo.map((opcao) => (
+                      <option key={opcao.id} value={opcao.nome}>
+                        {opcao.nome}
+                        {!opcao.ativo ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                  {opcoesCabo.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      Cadastre opções em{" "}
+                      <Link href="/configuracoes#opcoes-material-cabo" onClick={onClose}>
+                        Configurações &gt; Cabos
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+                <Input
+                  id="cabo_cor"
+                  label="Cor"
+                  placeholder="Ex: Imbuia escuro"
+                  value={form.cabo_cor}
+                  onChange={(e) => set("cabo_cor", e.target.value)}
+                />
+              </div>
+            )}
+
+            {tipoMaterialAtual === "bainha" && (
+              <div
+                className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
+                style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+              >
+                <div className="sm:col-span-3">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Dados da bainha
+                  </p>
+                </div>
+                <Input
+                  id="bainha_polegadas"
+                  label="Polegadas"
+                  placeholder='Ex: 8"'
+                  value={form.bainha_polegadas}
+                  onChange={(e) => set("bainha_polegadas", e.target.value)}
+                />
+                <div className="flex flex-col gap-1.5">
+                  <Select
+                    id="bainha_modelo"
+                    label="Modelo"
+                    value={form.bainha_modelo}
+                    onChange={(e) => set("bainha_modelo", e.target.value)}
+                  >
+                    <option value="">Selecione um modelo de bainha</option>
+                    {opcoesBainha.map((opcao) => (
+                      <option key={opcao.id} value={opcao.nome}>
+                        {opcao.nome}
+                        {!opcao.ativo ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                  {opcoesBainha.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      Cadastre opções em{" "}
+                      <Link href="/configuracoes#opcoes-material-bainha" onClick={onClose}>
+                        Configurações &gt; Bainhas
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Select
+                    id="bainha_botao"
+                    label="Botão"
+                    value={form.bainha_botao}
+                    onChange={(e) => set("bainha_botao", e.target.value)}
+                  >
+                    <option value="">Selecione um botão</option>
+                    {opcoesBotao.map((opcao) => (
+                      <option key={opcao.id} value={opcao.nome}>
+                        {opcao.nome}
+                        {!opcao.ativo ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                  {opcoesBotao.length === 0 && (
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      Cadastre opções em{" "}
+                      <Link href="/configuracoes#opcoes-material-botao" onClick={onClose}>
+                        Configurações &gt; Botões
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label
@@ -586,12 +964,16 @@ export function MPModal({
                 onChange={(e) => set("fornecedor_id", e.target.value)}
               >
                 <option value="">— Sem fornecedor —</option>
-                {fornecedores.map((fornecedor) => (
+                {fornecedoresCompativeis.map((fornecedor) => (
                   <option key={fornecedor.id} value={fornecedor.id}>
                     {fornecedor.nome}
                   </option>
                 ))}
               </Select>
+              <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                Mostra fornecedores compatíveis com{" "}
+                {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -793,7 +1175,8 @@ export function MPModal({
             >
               Preencha ou cole várias linhas no formato planilha. Linhas totalmente vazias serão
               ignoradas. Linhas incompletas, com SKU duplicado ou com fornecedor/categoria inválidos
-              serão bloqueadas antes de criar.
+              serão bloqueadas antes de criar. Todas as linhas serão criadas como{" "}
+              {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
             </div>
 
             <div className="flex items-center justify-between gap-3">
@@ -957,8 +1340,8 @@ export function MPModal({
             {editando
               ? "Salvar alterações"
               : modo === "bulk"
-                ? "Criar matérias-primas"
-                : "Criar matéria-prima"}
+                ? `Criar ${labelTipoMaterial(tipoMaterialAtual).toLowerCase()}`
+                : `Criar ${tipoMaterialMeta.singular.toLowerCase()}`}
           </Button>
         </div>
       </form>

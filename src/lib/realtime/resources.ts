@@ -26,6 +26,7 @@ export const RESOURCE_TO_KEYS = {
   categorias_faca: [qk.categorias.faca(), qk.facas.all],
   categorias_materia_prima: [qk.categorias.materiaPrima(), qk.materiasPrimas.all, qk.ordensCompra.all],
   categorias_consumivel: [qk.categorias.consumivel(), qk.consumiveis.all],
+  opcoes_material: [qk.opcoesMateriais.all, qk.materiasPrimas.all, qk.facas.all],
   tipos_gasto: [qk.tiposGasto.all, qk.gastos.all, qk.metricas.all],
 } as const satisfies Record<string, ReadonlyArray<QueryKey>>
 
@@ -47,7 +48,7 @@ const PATH_TO_RESOURCES: Array<{ prefix: string; resources: readonly RealtimeRes
   { prefix: '/cargos', resources: ['cargos', 'usuarios_perfis'] },
   {
     prefix: '/configuracoes',
-    resources: ['categorias_faca', 'categorias_materia_prima', 'categorias_consumivel'],
+    resources: ['categorias_faca', 'categorias_materia_prima', 'categorias_consumivel', 'opcoes_material'],
   },
 ]
 

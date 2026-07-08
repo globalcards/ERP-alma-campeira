@@ -12,6 +12,7 @@ import {
   getMPEditModalData,
   atualizarMovimentacaoMP,
 } from "@/lib/actions/materias-primas";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import { statusEstoque } from "@/types";
 import type { MPDetalheData, MPEditModalData } from "@/lib/actions/materias-primas";
 import type { MovimentacaoEstoque } from "@/types";
@@ -35,6 +36,29 @@ const tipoMovLabel: Record<string, { label: string; color: string; bg: string }>
   saida_venda: { label: "Venda", color: "#1d4ed8", bg: "#dbeafe" },
   ajuste: { label: "Ajuste", color: "#6b7280", bg: "#f3f4f6" },
 };
+
+function renderDetalhesTipo(mp: MPDetalheData["mp"]) {
+  if (mp.tipo_material === "lamina") {
+    return [
+      { label: "Aço", value: mp.lamina?.aco },
+      { label: "Carimbo", value: mp.lamina?.carimbo },
+    ];
+  }
+  if (mp.tipo_material === "cabo") {
+    return [
+      { label: "Tipo", value: mp.cabo?.tipo },
+      { label: "Cor", value: mp.cabo?.cor },
+    ];
+  }
+  if (mp.tipo_material === "bainha") {
+    return [
+      { label: "Polegadas", value: mp.bainha?.polegadas },
+      { label: "Modelo", value: mp.bainha?.modelo },
+      { label: "Botão", value: mp.bainha?.botao },
+    ];
+  }
+  return [];
+}
 
 export function MPDetalheClient({
   detalhe: initialDetalhe,
@@ -250,7 +274,10 @@ export function MPDetalheClient({
                   background: "color-mix(in srgb, var(--ac-accent) 12%, transparent)",
                 }}
               >
-                {mp.categoria}
+                {labelTipoMaterial(mp.tipo_material)}
+              </span>
+              <span className="text-sm" style={{ color: "var(--ac-muted)" }}>
+                Categoria: <strong style={{ color: "var(--ac-text)" }}>{mp.categoria}</strong>
               </span>
               {mp.fornecedor && (
                 <span className="text-sm" style={{ color: "var(--ac-muted)" }}>
@@ -301,7 +328,7 @@ export function MPDetalheClient({
                   if (!editModalData) {
                     setLoadingEditData(true);
                     try {
-                      const data = await getMPEditModalData();
+                      const data = await getMPEditModalData(mp.tipo_material);
                       setEditModalData(data);
                     } finally {
                       setLoadingEditData(false);
@@ -342,6 +369,34 @@ export function MPDetalheClient({
       </div>
 
       <div className="px-8 py-6 space-y-8">
+        {renderDetalhesTipo(mp).length > 0 && (
+          <section>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--ac-text)" }}>
+              Detalhes de {labelTipoMaterial(mp.tipo_material).toLowerCase()}
+            </h3>
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              style={{ color: "var(--ac-text)" }}
+            >
+              {renderDetalhesTipo(mp).map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl px-4 py-3"
+                  style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+                >
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">{item.value || "—"}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ========== Facas que usam este material ========== */}
         <section>
           <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--ac-text)" }}>
@@ -635,6 +690,16 @@ export function MPDetalheClient({
         editando={mp}
         fornecedores={editModalData?.fornecedores ?? []}
         categoriasMateriaPrima={editModalData?.categoriasMateriaPrima ?? []}
+        opcoesMateriais={
+          editModalData?.opcoesMateriais ?? {
+            aco: [],
+            cabo: [],
+            botao: [],
+            carimbo: [],
+            bainha: [],
+          }
+        }
+        tipoMaterialContext={mp.tipo_material}
         onSaved={refreshActiveTab}
       />
 

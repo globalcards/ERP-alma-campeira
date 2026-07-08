@@ -7,10 +7,17 @@ import { CategoriasFacaSection } from './categorias-faca-section'
 import { CategoriasMateriaPrimaSection } from './categorias-materia-prima-section'
 import { CategoriasConsumivelSection } from './categorias-consumivel-section'
 import { EmpresaSection } from './empresa-section'
+import { OpcoesMaterialSection } from './opcoes-material-section'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { updateTaxasLucroConfig, type TaxasLucroConfig } from '@/lib/actions/app-config'
-import type { CategoriaFacaDB, CategoriaMateriaPrimaDB, CategoriaConsumivelDB, Empresa } from '@/types'
+import type {
+  CategoriaFacaDB,
+  CategoriaMateriaPrimaDB,
+  CategoriaConsumivelDB,
+  Empresa,
+  OpcoesMateriaisPorTipo,
+} from '@/types'
 
 const SENHA_MIN_LEN = 8
 
@@ -249,6 +256,7 @@ type Props = {
   categorias: CategoriaFacaDB[]
   categoriasMateriaPrima: CategoriaMateriaPrimaDB[]
   categoriasConsumivel: CategoriaConsumivelDB[]
+  opcoesMateriais: OpcoesMateriaisPorTipo
   taxasLucro: TaxasLucroConfig
   permTaxasLucro: PermTaxas
   empresa: Empresa | null
@@ -258,6 +266,7 @@ export function ConfiguracoesClient({
   categorias,
   categoriasMateriaPrima,
   categoriasConsumivel,
+  opcoesMateriais,
   taxasLucro,
   permTaxasLucro,
   empresa,
@@ -590,6 +599,11 @@ export function ConfiguracoesClient({
 
             <CategoriasFacaSection categorias={categorias} />
             <CategoriasMateriaPrimaSection categorias={categoriasMateriaPrima} />
+            <OpcoesMaterialSection tipo="aco" opcoes={opcoesMateriais.aco} />
+            <OpcoesMaterialSection tipo="cabo" opcoes={opcoesMateriais.cabo} />
+            <OpcoesMaterialSection tipo="botao" opcoes={opcoesMateriais.botao} />
+            <OpcoesMaterialSection tipo="carimbo" opcoes={opcoesMateriais.carimbo} />
+            <OpcoesMaterialSection tipo="bainha" opcoes={opcoesMateriais.bainha} />
             <CategoriasConsumivelSection categorias={categoriasConsumivel} />
 
             <div

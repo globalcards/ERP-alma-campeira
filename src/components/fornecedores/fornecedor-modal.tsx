@@ -5,7 +5,8 @@ import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { criarFornecedor, atualizarFornecedor } from '@/lib/actions/fornecedores'
-import type { Fornecedor, TipoDocumento } from '@/types'
+import { TIPOS_MATERIAL } from '@/types'
+import type { Fornecedor, TipoDocumento, TipoMaterial } from '@/types'
 import { apenasDigitos, formatarCep, formatarCnpj, formatarCpf } from '@/lib/br/documento'
 import { buscarEnderecoPorCep } from '@/lib/br/viacep'
 import { buscarEmpresaPorCnpj } from '@/lib/br/cnpj'
@@ -43,6 +44,7 @@ type Form = {
   razao_social: string
   ie: string
   codigo_municipio_ibge: string
+  tipos_materiais: TipoMaterial[]
 }
 
 const formVazio: Form = {
@@ -61,6 +63,7 @@ const formVazio: Form = {
   razao_social: '',
   ie: '',
   codigo_municipio_ibge: '',
+  tipos_materiais: [],
 }
 
 function tipoDocDeFornecedor(f: Fornecedor): TipoDocumento {
@@ -94,6 +97,7 @@ export function FornecedorModal({ open, onClose, editando, onSaved }: Props) {
         razao_social: editando.razao_social ?? '',
         ie: editando.ie ?? '',
         codigo_municipio_ibge: editando.codigo_municipio_ibge ?? '',
+        tipos_materiais: editando.tipos_materiais ?? [],
       })
     } else {
       setForm(formVazio)
@@ -103,6 +107,15 @@ export function FornecedorModal({ open, onClose, editando, onSaved }: Props) {
 
   function set(field: keyof Form, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  function toggleTipoMaterial(tipoMaterial: TipoMaterial) {
+    setForm((current) => ({
+      ...current,
+      tipos_materiais: current.tipos_materiais.includes(tipoMaterial)
+        ? current.tipos_materiais.filter((item) => item !== tipoMaterial)
+        : [...current.tipos_materiais, tipoMaterial],
+    }))
   }
 
   function onTipoDocumentoChange(tipo: TipoDocumento) {
@@ -224,6 +237,7 @@ export function FornecedorModal({ open, onClose, editando, onSaved }: Props) {
         razao_social: form.razao_social,
         ie: form.ie,
         codigo_municipio_ibge: form.codigo_municipio_ibge,
+        tipos_materiais: form.tipos_materiais,
       }
       if (editando) {
         await atualizarFornecedor(editando.id, payload)
@@ -332,6 +346,45 @@ export function FornecedorModal({ open, onClose, editando, onSaved }: Props) {
             value={form.email}
             onChange={(e) => set('email', e.target.value)}
           />
+        </div>
+
+        <div
+          className="rounded-lg p-3 flex flex-col gap-3"
+          style={{ border: '1px solid var(--ac-border)', background: 'var(--ac-bg)' }}
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ac-muted)' }}>
+              Tipos de material atendidos
+            </p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--ac-muted)' }}>
+              Se nenhum tipo for marcado, o fornecedor continua disponível como geral.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {TIPOS_MATERIAL.filter((tipo) => tipo.value !== 'outro').map((tipo) => {
+              const checked = form.tipos_materiais.includes(tipo.value)
+              return (
+                <label
+                  key={tipo.value}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer"
+                  style={{
+                    border: `1px solid ${checked ? 'var(--ac-accent)' : 'var(--ac-border)'}`,
+                    background: checked
+                      ? 'color-mix(in srgb, var(--ac-accent) 10%, var(--ac-card))'
+                      : 'var(--ac-card)',
+                    color: 'var(--ac-text)',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleTipoMaterial(tipo.value)}
+                  />
+                  <span className="text-sm font-medium">{tipo.label}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
 
         <div

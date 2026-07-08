@@ -6,80 +6,93 @@
  */
 export const qk = {
   materiasPrimas: {
-    all: ['materias-primas'] as const,
-    list: () => [...qk.materiasPrimas.all, 'list'] as const,
+    all: ["materias-primas"] as const,
+    list: (tipoMaterial?: string) =>
+      (tipoMaterial
+        ? [...qk.materiasPrimas.all, "list", tipoMaterial]
+        : [...qk.materiasPrimas.all, "list"]) as readonly unknown[],
     /** Lista com limite maior (ex.: modal OC). Chave distinta do `list` 120. */
-    listLimit: (limit: number) => [...qk.materiasPrimas.all, 'list', limit] as const,
-    detalhe: (id: string) => [...qk.materiasPrimas.all, 'detalhe', id] as const,
+    listLimit: (limit: number) => [...qk.materiasPrimas.all, "list", limit] as const,
+    detalhe: (id: string) => [...qk.materiasPrimas.all, "detalhe", id] as const,
   },
   facas: {
-    all: ['facas'] as const,
-    list: () => [...qk.facas.all, 'list'] as const,
-    detalhe: (id: string) => [...qk.facas.all, 'detalhe', id] as const,
+    all: ["facas"] as const,
+    list: () => [...qk.facas.all, "list"] as const,
+    detalhe: (id: string) => [...qk.facas.all, "detalhe", id] as const,
   },
   fornecedores: {
-    all: ['fornecedores'] as const,
-    list: () => [...qk.fornecedores.all, 'list'] as const,
+    all: ["fornecedores"] as const,
+    list: (tipoMaterial?: string) =>
+      (tipoMaterial
+        ? [...qk.fornecedores.all, "list", tipoMaterial]
+        : [...qk.fornecedores.all, "list"]) as readonly unknown[],
   },
   clientes: {
-    all: ['clientes'] as const,
-    list: () => [...qk.clientes.all, 'list'] as const,
+    all: ["clientes"] as const,
+    list: () => [...qk.clientes.all, "list"] as const,
   },
   vendas: {
-    all: ['vendas'] as const,
-    list: () => [...qk.vendas.all, 'list'] as const,
+    all: ["vendas"] as const,
+    list: () => [...qk.vendas.all, "list"] as const,
   },
   orcamentos: {
-    all: ['orcamentos'] as const,
-    list: () => [...qk.orcamentos.all, 'list'] as const,
+    all: ["orcamentos"] as const,
+    list: () => [...qk.orcamentos.all, "list"] as const,
   },
   ordensCompra: {
-    all: ['ordens-compra'] as const,
-    list: () => [...qk.ordensCompra.all, 'list'] as const,
-    fila: () => [...qk.ordensCompra.all, 'fila'] as const,
+    all: ["ordens-compra"] as const,
+    list: () => [...qk.ordensCompra.all, "list"] as const,
+    fila: () => [...qk.ordensCompra.all, "fila"] as const,
   },
   consumiveis: {
-    all: ['consumiveis'] as const,
-    list: () => [...qk.consumiveis.all, 'list'] as const,
+    all: ["consumiveis"] as const,
+    list: () => [...qk.consumiveis.all, "list"] as const,
   },
   gastos: {
-    all: ['gastos'] as const,
-    list: () => [...qk.gastos.all, 'list'] as const,
+    all: ["gastos"] as const,
+    list: () => [...qk.gastos.all, "list"] as const,
   },
   entradas: {
-    all: ['entradas'] as const,
-    list: () => [...qk.entradas.all, 'list'] as const,
+    all: ["entradas"] as const,
+    list: () => [...qk.entradas.all, "list"] as const,
   },
   movimentacao: {
-    all: ['movimentacao'] as const,
-    list: () => [...qk.movimentacao.all, 'list'] as const,
+    all: ["movimentacao"] as const,
+    list: () => [...qk.movimentacao.all, "list"] as const,
   },
   tiposGasto: {
-    all: ['tipos-gasto'] as const,
-    list: () => [...qk.tiposGasto.all, 'list'] as const,
+    all: ["tipos-gasto"] as const,
+    list: () => [...qk.tiposGasto.all, "list"] as const,
   },
   boletos: {
-    all: ['boletos'] as const,
-    list: (tipo?: 'entrada' | 'saida') =>
-      (tipo ? [...qk.boletos.all, 'list', tipo] : [...qk.boletos.all, 'list']) as readonly unknown[],
+    all: ["boletos"] as const,
+    list: (tipo?: "entrada" | "saida") =>
+      (tipo
+        ? [...qk.boletos.all, "list", tipo]
+        : [...qk.boletos.all, "list"]) as readonly unknown[],
   },
   usuarios: {
-    all: ['usuarios'] as const,
-    list: () => [...qk.usuarios.all, 'list'] as const,
+    all: ["usuarios"] as const,
+    list: () => [...qk.usuarios.all, "list"] as const,
     /** Lista para "Quem registrou" em OCs (usuarios_perfis ativos). */
-    registroOC: () => [...qk.usuarios.all, 'registro-oc'] as const,
+    registroOC: () => [...qk.usuarios.all, "registro-oc"] as const,
   },
   cargos: {
-    all: ['cargos'] as const,
-    list: () => [...qk.cargos.all, 'list'] as const,
+    all: ["cargos"] as const,
+    list: () => [...qk.cargos.all, "list"] as const,
   },
   metricas: {
-    all: ['metricas'] as const,
+    all: ["metricas"] as const,
   },
   categorias: {
-    all: ['categorias'] as const,
-    faca: () => [...qk.categorias.all, 'faca'] as const,
-    materiaPrima: () => [...qk.categorias.all, 'materia-prima'] as const,
-    consumivel: () => [...qk.categorias.all, 'consumivel'] as const,
+    all: ["categorias"] as const,
+    faca: () => [...qk.categorias.all, "faca"] as const,
+    materiaPrima: () => [...qk.categorias.all, "materia-prima"] as const,
+    consumivel: () => [...qk.categorias.all, "consumivel"] as const,
   },
-} as const
+  opcoesMateriais: {
+    all: ["opcoes-materiais"] as const,
+    list: (tipo: string, incluirInativos = false) =>
+      [...qk.opcoesMateriais.all, "list", tipo, incluirInativos ? "all" : "active"] as const,
+  },
+} as const;

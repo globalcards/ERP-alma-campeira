@@ -4,7 +4,13 @@ import { revalidateTag } from "next/cache";
 import { assertPermissao, requireAuthenticatedUserId } from "@/lib/auth";
 import { fetchFornecedoresFullList } from "@/lib/cache/list-data";
 import { prisma } from "@/lib/prisma";
-import type { Fornecedor, OrdemCompraHistoricoResumo, StatusOC, TipoDocumento } from "@/types";
+import type {
+  Fornecedor,
+  OrdemCompraHistoricoResumo,
+  StatusOC,
+  TipoDocumento,
+  TipoMaterial,
+} from "@/types";
 import { apenasDigitos } from "@/lib/br/documento";
 import { validarCamposObrigatoriosFornecedor } from "@/lib/br/validar-cadastro-parceiro";
 
@@ -16,16 +22,28 @@ async function revalidateFornecedoresList() {
   } catch {}
 }
 
-export async function getFornecedores(limit = 50): Promise<Fornecedor[]> {
+function normalizarTiposMaterial(input: TipoMaterial[] | undefined): TipoMaterial[] {
+  const permitidos: TipoMaterial[] = ["lamina", "cabo", "bainha", "outro"];
+  const unicos = new Set((input ?? []).filter((item): item is TipoMaterial => permitidos.includes(item)));
+  return Array.from(unicos);
+}
+
+function fornecedorAtendeTipo(fornecedor: Fornecedor, tipoMaterial?: TipoMaterial | null): boolean {
+  if (!tipoMaterial) return true;
+  const tipos = fornecedor.tipos_materiais ?? [];
+  return tipos.length === 0 || tipos.includes(tipoMaterial);
+}
+
+export async function getFornecedores(limit = 50, tipoMaterial?: TipoMaterial): Promise<Fornecedor[]> {
   const userId = await requireAuthenticatedUserId();
   // Lista compartilhada por boletos, consumíveis e OCs; não deve herdar permissão administrativa.
   const rows = await fetchFornecedoresFullList(userId);
-  return rows.slice(0, limit);
+  return rows.filter((fornecedor) => fornecedorAtendeTipo(fornecedor, tipoMaterial)).slice(0, limit);
 }
 
 /** Mantido para compatibilidade — agora idêntico a `getFornecedores`. */
-export async function getFornecedoresSemCache(limit = 50): Promise<Fornecedor[]> {
-  return getFornecedores(limit);
+export async function getFornecedoresSemCache(limit = 50, tipoMaterial?: TipoMaterial): Promise<Fornecedor[]> {
+  return getFornecedores(limit, tipoMaterial);
 }
 
 const STATUS_OC_VALIDOS: readonly StatusOC[] = ["pendente", "enviada", "recebida"];
@@ -62,6 +80,7 @@ function mapFornecedorRow(row: {
   ie: string | null;
   codigoMunicipioIbge: string | null;
   createdAt: Date;
+  tiposMaterial?: { tipoMaterial: TipoMaterial }[];
 }): Fornecedor {
   return {
     id: row.id,
@@ -80,6 +99,7 @@ function mapFornecedorRow(row: {
     razao_social: row.razaoSocial,
     ie: row.ie,
     codigo_municipio_ibge: row.codigoMunicipioIbge,
+    tipos_materiais: row.tiposMaterial?.map((item) => item.tipoMaterial) ?? [],
     created_at: row.createdAt.toISOString(),
   };
 }
@@ -160,6 +180,7 @@ type FornecedorInput = {
   razao_social?: string;
   ie?: string;
   codigo_municipio_ibge?: string;
+  tipos_materiais?: TipoMaterial[];
 };
 
 function normalizarFornecedorPayload(input: FornecedorInput) {
@@ -186,6 +207,7 @@ function normalizarFornecedorPayload(input: FornecedorInput) {
     razao_social: (input.razao_social ?? "").trim() || null,
     ie: (input.ie ?? "").trim() || null,
     codigo_municipio_ibge: ibge,
+    tipos_materiais: normalizarTiposMaterial(input.tipos_materiais),
   };
 }
 
@@ -209,6 +231,13 @@ export async function criarFornecedor(input: FornecedorInput) {
       razaoSocial: row.razao_social,
       ie: row.ie,
       codigoMunicipioIbge: row.codigo_municipio_ibge,
+      tiposMaterial: row.tipos_materiais.length
+        ? {
+            createMany: {
+              data: row.tipos_materiais.map((tipoMaterial) => ({ tipoMaterial })),
+            },
+          }
+        : undefined,
     },
   });
   await revalidateFornecedoresList();
@@ -235,6 +264,16 @@ export async function atualizarFornecedor(id: string, input: FornecedorInput) {
       razaoSocial: row.razao_social,
       ie: row.ie,
       codigoMunicipioIbge: row.codigo_municipio_ibge,
+      tiposMaterial: {
+        deleteMany: {},
+        ...(row.tipos_materiais.length
+          ? {
+              createMany: {
+                data: row.tipos_materiais.map((tipoMaterial) => ({ tipoMaterial })),
+              },
+            }
+          : {}),
+      },
     },
   });
   await revalidateFornecedoresList();

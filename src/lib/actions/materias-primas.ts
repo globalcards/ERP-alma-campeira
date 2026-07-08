@@ -7,6 +7,7 @@ import {
   fetchCategoriasMateriaPrimaList,
   fetchFornecedoresSelect,
   fetchMatériasPrimasList,
+  fetchOpcoesMaterialList,
 } from "@/lib/cache/list-data";
 import { prisma } from "@/lib/prisma";
 import type {
@@ -15,9 +16,16 @@ import type {
   Faca,
   Fornecedor,
   CategoriaMateriaPrimaDB,
+  TipoMaterial,
+  MateriaPrimaLamina,
+  MateriaPrimaCabo,
+  MateriaPrimaBainha,
+  OpcoesMateriaisPorTipo,
+  TipoOpcaoMaterial,
 } from "@/types";
 import { gerarCodigoForte } from "@/lib/utils/codigo";
 import { withTiming } from "@/lib/perf/timing";
+import { obterTipoMaterialPadrao } from "@/lib/materiais/tipos";
 
 async function revalidateMPLists() {
   const userId = await requireAuthenticatedUserId();
@@ -28,12 +36,18 @@ async function revalidateMPLists() {
   revalidateTag(`list-facas-${userId}`, "max");
 }
 
-export async function getMatériasPrimas(limit?: number): Promise<MateriaPrima[]> {
+export async function getMatériasPrimas(
+  limit?: number,
+  tipoMaterial?: TipoMaterial,
+): Promise<MateriaPrima[]> {
   return withTiming("getMatériasPrimas", async () => {
     const userId = await requireAuthenticatedUserId();
     await assertPermissao("materias_primas", "ver");
     const rows = await fetchMatériasPrimasList(userId);
-    return typeof limit === "number" ? rows.slice(0, limit) : rows;
+    const filtrados = tipoMaterial
+      ? rows.filter((row) => row.tipo_material === tipoMaterial)
+      : rows;
+    return typeof limit === "number" ? filtrados.slice(0, limit) : filtrados;
   });
 }
 
@@ -55,6 +69,30 @@ function decimal(value: number): Prisma.Decimal {
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  const normalized = (value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function fornecedorAtendeTipo(
+  fornecedor:
+    | {
+        id: string;
+        tiposMaterial?: { tipoMaterial: TipoMaterial }[];
+      }
+    | {
+        id: string;
+        tipos_materiais?: TipoMaterial[];
+      },
+  tipoMaterial: TipoMaterial,
+): boolean {
+  const tipos =
+    "tiposMaterial" in fornecedor
+      ? (fornecedor.tiposMaterial?.map((item) => item.tipoMaterial) ?? [])
+      : ((fornecedor as { id: string; tipos_materiais?: TipoMaterial[] }).tipos_materiais ?? []);
+  return tipos.length === 0 || tipos.includes(tipoMaterial);
 }
 
 function throwFriendlyUniqueError(error: unknown): never {
@@ -92,6 +130,7 @@ function mapFornecedorDetalhe(
     ie: string | null;
     codigoMunicipioIbge: string | null;
     createdAt: Date;
+    tiposMaterial?: { tipoMaterial: TipoMaterial }[];
   } | null,
 ): Fornecedor | null {
   if (!row) return null;
@@ -112,6 +151,7 @@ function mapFornecedorDetalhe(
     razao_social: row.razaoSocial,
     ie: row.ie,
     codigo_municipio_ibge: row.codigoMunicipioIbge,
+    tipos_materiais: row.tiposMaterial?.map((item) => item.tipoMaterial) ?? [],
     created_at: row.createdAt.toISOString(),
   };
 }
@@ -122,6 +162,7 @@ function mapMateriaPrimaDetalhe(row: {
   sku: string;
   nome: string;
   categoria: string;
+  tipoMaterial: TipoMaterial;
   fornecedorId: string | null;
   fotoUrl: string | null;
   precoCusto: Prisma.Decimal;
@@ -146,7 +187,11 @@ function mapMateriaPrimaDetalhe(row: {
     ie: string | null;
     codigoMunicipioIbge: string | null;
     createdAt: Date;
+    tiposMaterial?: { tipoMaterial: TipoMaterial }[];
   } | null;
+  lamina: { aco: string | null; carimbo: string | null } | null;
+  cabo: { tipo: string | null; cor: string | null } | null;
+  bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
 }): MateriaPrima {
   return {
     id: row.id,
@@ -154,12 +199,16 @@ function mapMateriaPrimaDetalhe(row: {
     sku: row.sku,
     nome: row.nome,
     categoria: row.categoria,
+    tipo_material: row.tipoMaterial,
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
     preco_custo: numberFrom(row.precoCusto),
     estoque_atual: numberFrom(row.estoqueAtual),
     estoque_minimo: numberFrom(row.estoqueMinimo),
     created_at: row.createdAt.toISOString(),
+    lamina: row.lamina,
+    cabo: row.cabo,
+    bainha: row.bainha,
     fornecedor: mapFornecedorDetalhe(row.fornecedor),
   };
 }
@@ -200,17 +249,36 @@ type MPInput = {
   sku: string;
   nome: string;
   categoria: string;
+  tipo_material?: TipoMaterial;
   fornecedor_id: string | null;
   preco_custo: number;
   estoque_atual: number;
   estoque_minimo: number;
+  lamina?: Partial<MateriaPrimaLamina> | null;
+  cabo?: Partial<MateriaPrimaCabo> | null;
+  bainha?: Partial<MateriaPrimaBainha> | null;
 };
 
-function normalizeMPInput(input: MPInput, linha?: number): MPInput {
+type NormalizedMPInput = {
+  sku: string;
+  nome: string;
+  categoria: string;
+  tipo_material: TipoMaterial;
+  fornecedor_id: string | null;
+  preco_custo: number;
+  estoque_atual: number;
+  estoque_minimo: number;
+  lamina: MateriaPrimaLamina | null;
+  cabo: MateriaPrimaCabo | null;
+  bainha: MateriaPrimaBainha | null;
+};
+
+function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   const prefixo = linha ? `Linha ${linha}: ` : "";
   const sku = input.sku.trim();
   const nome = input.nome.trim();
   const categoria = input.categoria.trim();
+  const tipo_material = obterTipoMaterialPadrao(input.tipo_material, categoria);
   const preco_custo = Number(input.preco_custo);
   const estoque_atual = Number(input.estoque_atual || 0);
   const estoque_minimo = Number(input.estoque_minimo || 0);
@@ -226,30 +294,174 @@ function normalizeMPInput(input: MPInput, linha?: number): MPInput {
     sku,
     nome,
     categoria,
+    tipo_material,
     fornecedor_id: input.fornecedor_id?.trim() || null,
     preco_custo,
     estoque_atual,
     estoque_minimo,
+    lamina:
+      tipo_material === "lamina"
+        ? {
+            aco: normalizeOptionalText(input.lamina?.aco),
+            carimbo: normalizeOptionalText(input.lamina?.carimbo),
+          }
+        : null,
+    cabo:
+      tipo_material === "cabo"
+        ? {
+            tipo: normalizeOptionalText(input.cabo?.tipo),
+            cor: normalizeOptionalText(input.cabo?.cor),
+          }
+        : null,
+    bainha:
+      tipo_material === "bainha"
+        ? {
+            polegadas: normalizeOptionalText(input.bainha?.polegadas),
+            modelo: normalizeOptionalText(input.bainha?.modelo),
+            botao: normalizeOptionalText(input.bainha?.botao),
+          }
+        : null,
   };
+}
+
+async function validarFornecedorParaTipo(
+  fornecedorId: string | null,
+  tipoMaterial: TipoMaterial,
+): Promise<void> {
+  if (!fornecedorId) return;
+
+  const fornecedor = await prisma.fornecedor.findUnique({
+    where: { id: fornecedorId },
+    select: {
+      id: true,
+      tiposMaterial: {
+        select: { tipoMaterial: true },
+      },
+    },
+  });
+
+  if (!fornecedor) {
+    throw new Error("Fornecedor selecionado não é válido.");
+  }
+
+  if (!fornecedorAtendeTipo(fornecedor, tipoMaterial)) {
+    throw new Error("O fornecedor selecionado não atende o tipo de material informado.");
+  }
+}
+
+function listarOpcoesSelecionadas(input: NormalizedMPInput): Array<{
+  tipo: TipoOpcaoMaterial;
+  valor: string | null;
+}> {
+  if (input.tipo_material === "lamina") {
+    return [
+      { tipo: "aco", valor: input.lamina?.aco ?? null },
+      { tipo: "carimbo", valor: input.lamina?.carimbo ?? null },
+    ];
+  }
+  if (input.tipo_material === "cabo") {
+    return [{ tipo: "cabo", valor: input.cabo?.tipo ?? null }];
+  }
+  if (input.tipo_material === "bainha") {
+    return [
+      { tipo: "bainha", valor: input.bainha?.modelo ?? null },
+      { tipo: "botao", valor: input.bainha?.botao ?? null },
+    ];
+  }
+  return [];
+}
+
+async function validarOpcoesConfiguraveis(input: NormalizedMPInput): Promise<void> {
+  const opcoesSelecionadas = listarOpcoesSelecionadas(input).filter(
+    (item): item is { tipo: TipoOpcaoMaterial; valor: string } => Boolean(item.valor),
+  );
+  if (opcoesSelecionadas.length === 0) return;
+
+  const checks = await Promise.all(
+    opcoesSelecionadas.map(async (item) => ({
+      ...item,
+      exists: await prisma.opcaoMaterial.findFirst({
+        where: { tipo: item.tipo, nome: item.valor },
+        select: { id: true },
+      }),
+    })),
+  );
+
+  const invalida = checks.find((item) => !item.exists);
+  if (invalida) {
+    throw new Error(`A opção "${invalida.valor}" não existe mais nas configurações de materiais.`);
+  }
+}
+
+async function salvarDetalhesTipoMaterial(
+  tx: Prisma.TransactionClient,
+  materiaPrimaId: string,
+  input: NormalizedMPInput,
+) {
+  await Promise.all([
+    tx.materialLamina.deleteMany({ where: { materiaPrimaId } }),
+    tx.materialCabo.deleteMany({ where: { materiaPrimaId } }),
+    tx.materialBainha.deleteMany({ where: { materiaPrimaId } }),
+  ]);
+
+  if (input.tipo_material === "lamina") {
+    await tx.materialLamina.create({
+      data: {
+        materiaPrimaId,
+        aco: input.lamina?.aco ?? null,
+        carimbo: input.lamina?.carimbo ?? null,
+      },
+    });
+    return;
+  }
+
+  if (input.tipo_material === "cabo") {
+    await tx.materialCabo.create({
+      data: {
+        materiaPrimaId,
+        tipo: input.cabo?.tipo ?? null,
+        cor: input.cabo?.cor ?? null,
+      },
+    });
+    return;
+  }
+
+  if (input.tipo_material === "bainha") {
+    await tx.materialBainha.create({
+      data: {
+        materiaPrimaId,
+        polegadas: input.bainha?.polegadas ?? null,
+        modelo: input.bainha?.modelo ?? null,
+        botao: input.bainha?.botao ?? null,
+      },
+    });
+  }
 }
 
 export async function criarMateriaPrima(input: MPInput) {
   await assertPermissao("materias_primas", "criar");
   const normalized = normalizeMPInput(input);
   const codigo = await gerarCodigoMP();
+  await validarFornecedorParaTipo(normalized.fornecedor_id, normalized.tipo_material);
+  await validarOpcoesConfiguraveis(normalized);
 
   try {
-    await prisma.materiaPrima.create({
-      data: {
-        codigo,
-        sku: normalized.sku,
-        nome: normalized.nome,
-        categoria: normalized.categoria,
-        fornecedorId: normalized.fornecedor_id,
-        precoCusto: decimal(normalized.preco_custo),
-        estoqueAtual: decimal(normalized.estoque_atual),
-        estoqueMinimo: decimal(normalized.estoque_minimo),
-      },
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.materiaPrima.create({
+        data: {
+          codigo,
+          sku: normalized.sku,
+          nome: normalized.nome,
+          categoria: normalized.categoria,
+          tipoMaterial: normalized.tipo_material,
+          fornecedorId: normalized.fornecedor_id,
+          precoCusto: decimal(normalized.preco_custo),
+          estoqueAtual: decimal(normalized.estoque_atual),
+          estoqueMinimo: decimal(normalized.estoque_minimo),
+        },
+        select: { id: true },
+      });
+      await salvarDetalhesTipoMaterial(tx, created.id, normalized);
     });
   } catch (error) {
     throwFriendlyUniqueError(error);
@@ -282,7 +494,7 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
   if (fornecedorIds.length > 0) {
     const fornecedores = await prisma.fornecedor.findMany({
       where: { id: { in: fornecedorIds } },
-      select: { id: true },
+      select: { id: true, tiposMaterial: { select: { tipoMaterial: true } } },
     });
     const validos = new Set(fornecedores.map((fornecedor) => fornecedor.id));
     const fornecedorInvalido = normalizedInputs.find(
@@ -291,7 +503,19 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
     if (fornecedorInvalido?.fornecedor_id) {
       throw new Error("Um ou mais fornecedores selecionados não são válidos.");
     }
+
+    const fornecedoresMap = new Map(fornecedores.map((fornecedor) => [fornecedor.id, fornecedor]));
+    const fornecedorTipoInvalido = normalizedInputs.find((input) => {
+      if (!input.fornecedor_id) return false;
+      const fornecedor = fornecedoresMap.get(input.fornecedor_id);
+      return !fornecedor || !fornecedorAtendeTipo(fornecedor, input.tipo_material);
+    });
+    if (fornecedorTipoInvalido?.fornecedor_id) {
+      throw new Error("Há fornecedores na planilha que não atendem o tipo de material informado.");
+    }
   }
+
+  await Promise.all(normalizedInputs.map((input) => validarOpcoesConfiguraveis(input)));
 
   const codigos = await Promise.all(normalizedInputs.map(() => gerarCodigoMP()));
 
@@ -303,6 +527,7 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
           sku: input.sku,
           nome: input.nome,
           categoria: input.categoria,
+          tipoMaterial: input.tipo_material,
           fornecedorId: input.fornecedor_id,
           precoCusto: decimal(input.preco_custo),
           estoqueAtual: decimal(input.estoque_atual),
@@ -320,18 +545,24 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
 export async function atualizarMateriaPrima(id: string, input: MPInput) {
   await assertPermissao("materias_primas", "editar");
   const normalized = normalizeMPInput(input);
+  await validarFornecedorParaTipo(normalized.fornecedor_id, normalized.tipo_material);
+  await validarOpcoesConfiguraveis(normalized);
   try {
-    await prisma.materiaPrima.update({
-      where: { id },
-      data: {
-        sku: normalized.sku,
-        nome: normalized.nome,
-        categoria: normalized.categoria,
-        fornecedorId: normalized.fornecedor_id,
-        precoCusto: decimal(normalized.preco_custo),
-        estoqueAtual: decimal(normalized.estoque_atual),
-        estoqueMinimo: decimal(normalized.estoque_minimo),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.materiaPrima.update({
+        where: { id },
+        data: {
+          sku: normalized.sku,
+          nome: normalized.nome,
+          categoria: normalized.categoria,
+          tipoMaterial: normalized.tipo_material,
+          fornecedorId: normalized.fornecedor_id,
+          precoCusto: decimal(normalized.preco_custo),
+          estoqueAtual: decimal(normalized.estoque_atual),
+          estoqueMinimo: decimal(normalized.estoque_minimo),
+        },
+      });
+      await salvarDetalhesTipoMaterial(tx, id, normalized);
     });
   } catch (error) {
     throwFriendlyUniqueError(error);
@@ -378,7 +609,22 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
     prisma.materiaPrima.findUnique({
       where: { id: mpId },
       include: {
-        fornecedor: true,
+        fornecedor: {
+          include: {
+            tiposMaterial: {
+              select: { tipoMaterial: true },
+            },
+          },
+        },
+        lamina: {
+          select: { aco: true, carimbo: true },
+        },
+        cabo: {
+          select: { tipo: true, cor: true },
+        },
+        bainha: {
+          select: { polegadas: true, modelo: true, botao: true },
+        },
       },
     }),
     prisma.facaMateriaPrima.findMany({
@@ -455,19 +701,44 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
 export type MPEditModalData = {
   fornecedores: Fornecedor[];
   categoriasMateriaPrima: CategoriaMateriaPrimaDB[];
+  opcoesMateriais: OpcoesMateriaisPorTipo;
 };
 
-export async function getMPEditModalData(): Promise<MPEditModalData> {
+export async function getMPEditModalData(tipoMaterial?: TipoMaterial): Promise<MPEditModalData> {
   return withTiming("getMPEditModalData", async () => {
     const userId = await requireAuthenticatedUserId();
     await assertPermissao("materias_primas", "ver");
-    const [fornecedores, categoriasMateriaPrima] = await Promise.all([
+    const [
+      fornecedores,
+      categoriasMateriaPrima,
+      opcoesAco,
+      opcoesCabo,
+      opcoesBotao,
+      opcoesCarimbo,
+      opcoesBainha,
+    ] = await Promise.all([
       fetchFornecedoresSelect(userId),
       fetchCategoriasMateriaPrimaList(userId),
+      fetchOpcoesMaterialList(userId, "aco", false),
+      fetchOpcoesMaterialList(userId, "cabo", false),
+      fetchOpcoesMaterialList(userId, "botao", false),
+      fetchOpcoesMaterialList(userId, "carimbo", false),
+      fetchOpcoesMaterialList(userId, "bainha", false),
     ]);
     return {
-      fornecedores: fornecedores as Fornecedor[],
+      fornecedores: tipoMaterial
+        ? (fornecedores as Fornecedor[]).filter((fornecedor) =>
+            fornecedorAtendeTipo(fornecedor, tipoMaterial),
+          )
+        : (fornecedores as Fornecedor[]),
       categoriasMateriaPrima,
+      opcoesMateriais: {
+        aco: opcoesAco,
+        cabo: opcoesCabo,
+        botao: opcoesBotao,
+        carimbo: opcoesCarimbo,
+        bainha: opcoesBainha,
+      },
     };
   });
 }

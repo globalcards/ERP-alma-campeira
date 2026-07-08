@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import { BadgeEstoque } from "@/components/ui/badge-estoque";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -10,7 +11,7 @@ import {
   getMPEditModalData,
   type MPEditModalData,
 } from "@/lib/actions/materias-primas";
-import type { MateriaPrima, StatusEstoque } from "@/types";
+import type { MateriaPrima, StatusEstoque, TipoMaterial } from "@/types";
 import { statusEstoque } from "@/types";
 import { useErpTabs } from "@/components/layout/erp-tabs";
 import { useMateriasPrimas } from "@/lib/query/hooks";
@@ -27,7 +28,8 @@ type ViewMode = "categorias" | "todos";
 type SortField = "codigo" | "nome" | "categoria" | "fornecedor" | "preco_custo" | "status";
 type SortDirection = "asc" | "desc";
 type SortAlign = "left" | "center" | "right";
-type CategoriaResumo = { nome: string; quantidade: number };
+type GrupoResumo = { nome: string; quantidade: number };
+type TipoResumo = { tipo: TipoMaterial; quantidade: number };
 
 const STATUS_SORT_ORDER: Record<StatusEstoque, number> = {
   critico: 0,
@@ -61,6 +63,93 @@ function compareMateriaPrima(a: MateriaPrima, b: MateriaPrima, field: SortField)
 function getSortIndicator(active: boolean, direction: SortDirection): string {
   if (!active) return "↕";
   return direction === "asc" ? "↑" : "↓";
+}
+
+function getTipoSingular(tipoMaterial: TipoMaterial): string {
+  switch (tipoMaterial) {
+    case "lamina":
+      return "Lâmina";
+    case "cabo":
+      return "Cabo";
+    case "bainha":
+      return "Bainha";
+    default:
+      return "Material";
+  }
+}
+
+function getTipoDescricao(tipoMaterial: TipoMaterial): string {
+  switch (tipoMaterial) {
+    case "lamina":
+      return "Aço, carimbo e insumos usados nas lâminas.";
+    case "cabo":
+      return "Materiais de cabo com tipo, cor e acabamento.";
+    case "bainha":
+      return "Materiais usados em bainhas, com modelo e botão.";
+    default:
+      return "Materiais gerais sem bloco específico.";
+  }
+}
+
+function getAgrupamentoMeta(tipoMaterial: TipoMaterial): {
+  labelSingular: string;
+  labelPlural: string;
+  fallback: string;
+} {
+  switch (tipoMaterial) {
+    case "lamina":
+      return {
+        labelSingular: "Aço",
+        labelPlural: "Aços",
+        fallback: "Sem aço configurado",
+      };
+    case "cabo":
+      return {
+        labelSingular: "Tipo",
+        labelPlural: "Tipos",
+        fallback: "Sem tipo configurado",
+      };
+    case "bainha":
+      return {
+        labelSingular: "Modelo",
+        labelPlural: "Modelos",
+        fallback: "Sem modelo configurado",
+      };
+    default:
+      return {
+        labelSingular: "Categoria",
+        labelPlural: "Categorias",
+        fallback: "Sem categoria",
+      };
+  }
+}
+
+function getGrupoMateriaPrima(mp: MateriaPrima): string {
+  if (mp.tipo_material === "lamina") {
+    return mp.lamina?.aco?.trim() || "Sem aço configurado";
+  }
+  if (mp.tipo_material === "cabo") {
+    return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  }
+  if (mp.tipo_material === "bainha") {
+    return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
+  }
+  return mp.categoria.trim() || "Sem categoria";
+}
+
+function formatDetalhesTipo(mp: MateriaPrima): string {
+  if (mp.tipo_material === "lamina") {
+    return [mp.lamina?.aco, mp.lamina?.carimbo].filter(Boolean).join(" · ") || "—";
+  }
+  if (mp.tipo_material === "cabo") {
+    return [mp.cabo?.tipo, mp.cabo?.cor].filter(Boolean).join(" · ") || "—";
+  }
+  if (mp.tipo_material === "bainha") {
+    return (
+      [mp.bainha?.polegadas, mp.bainha?.modelo, mp.bainha?.botao].filter(Boolean).join(" · ") || "—"
+    );
+  }
+  return "—";
 }
 
 function SortableHeader({
@@ -158,6 +247,12 @@ function MPTabela({
               sortDirection={sortDirection}
               onToggle={onToggleSort}
             />
+            <th
+              className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wide"
+              style={{ color: "var(--ac-muted)" }}
+            >
+              Detalhes
+            </th>
             <SortableHeader
               label="Categoria"
               field="categoria"
@@ -201,7 +296,7 @@ function MPTabela({
           {itens.length === 0 && (
             <tr>
               <td
-                colSpan={9}
+                colSpan={10}
                 className="text-center py-12 text-sm"
                 style={{ color: "var(--ac-muted)" }}
               >
@@ -292,6 +387,9 @@ function MPTabela({
                 </td>
                 <td className="px-4 py-3 font-medium" style={{ color: "var(--ac-text)" }}>
                   {mp.nome}
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: "var(--ac-muted)" }}>
+                  {formatDetalhesTipo(mp)}
                 </td>
                 <td className="px-4 py-3" style={{ color: "var(--ac-muted)" }}>
                   {mp.categoria}
@@ -403,7 +501,7 @@ function MPTabela({
 export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const { refreshActiveTab, openTab } = useErpTabs();
   const { data: materiasPrimas = initialMP } = useMateriasPrimas({ initialData: initialMP });
-  const [modalData, setModalData] = useState<MPEditModalData | null>(null);
+  const [modalData, setModalData] = useState<Partial<Record<TipoMaterial, MPEditModalData>>>({});
   const [loadingModalData, setLoadingModalData] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<MateriaPrima | null>(null);
@@ -413,24 +511,55 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [busca, setBusca] = useState("");
   const [fotoLightboxSrc, setFotoLightboxSrc] = useState<string>("");
   const [fotoLightboxAlt, setFotoLightboxAlt] = useState<string>("");
+  const [selectedTipoMaterial, setSelectedTipoMaterial] = useState<TipoMaterial>(() => {
+    return (
+      (["lamina", "cabo", "bainha", "outro"] as const).find((tipo) =>
+        initialMP.some((mp) => mp.tipo_material === tipo),
+      ) ?? "lamina"
+    );
+  });
   const [viewMode, setViewMode] = useState<ViewMode>("categorias");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("codigo");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  const categorias = useMemo(() => {
-    const counts = new Map<string, number>();
+  const tipos = useMemo<TipoResumo[]>(() => {
+    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "outro"];
+    const counts = new Map<TipoMaterial, number>();
+    for (const tipo of ordem) counts.set(tipo, 0);
     for (const mp of materiasPrimas) {
-      counts.set(mp.categoria, (counts.get(mp.categoria) ?? 0) + 1);
+      counts.set(mp.tipo_material, (counts.get(mp.tipo_material) ?? 0) + 1);
+    }
+    return ordem
+      .map((tipo) => ({ tipo, quantidade: counts.get(tipo) ?? 0 }))
+      .filter((item) => item.quantidade > 0 || item.tipo !== "outro");
+  }, [materiasPrimas]);
+
+  const tipoMaterialAtivo = tipos.some((tipo) => tipo.tipo === selectedTipoMaterial)
+    ? selectedTipoMaterial
+    : (tipos[0]?.tipo ?? "lamina");
+
+  const materiaisDoTipo = useMemo(
+    () => materiasPrimas.filter((mp) => mp.tipo_material === tipoMaterialAtivo),
+    [materiasPrimas, tipoMaterialAtivo],
+  );
+
+  const agrupamentoMeta = useMemo(() => getAgrupamentoMeta(tipoMaterialAtivo), [tipoMaterialAtivo]);
+
+  const grupos = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const mp of materiaisDoTipo) {
+      const grupo = getGrupoMateriaPrima(mp);
+      counts.set(grupo, (counts.get(grupo) ?? 0) + 1);
     }
     return Array.from(counts.entries())
       .map(([nome, quantidade]) => ({ nome, quantidade }))
       .sort((a, b) => compareText(a.nome, b.nome));
-  }, [materiasPrimas]);
+  }, [materiaisDoTipo]);
 
   const fotoUrlByMPId = useMemo(() => {
     const map = new Map<string, string>();
-    for (const mp of materiasPrimas) {
+    for (const mp of materiaisDoTipo) {
       if (!mp.foto_url) continue;
       map.set(
         mp.id,
@@ -442,20 +571,20 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
       );
     }
     return map;
-  }, [materiasPrimas]);
+  }, [materiaisDoTipo]);
 
-  const activeSelectedCategory =
-    selectedCategory && materiasPrimas.some((mp) => mp.categoria === selectedCategory)
-      ? selectedCategory
+  const activeSelectedGroup =
+    selectedGroup && materiaisDoTipo.some((mp) => getGrupoMateriaPrima(mp) === selectedGroup)
+      ? selectedGroup
       : null;
 
-  const buscaHabilitada = viewMode === "todos" || activeSelectedCategory !== null;
+  const buscaHabilitada = viewMode === "todos" || activeSelectedGroup !== null;
 
   const itensVisiveis = useMemo(() => {
     const base =
-      viewMode === "categorias" && activeSelectedCategory
-        ? materiasPrimas.filter((mp) => mp.categoria === activeSelectedCategory)
-        : materiasPrimas;
+      viewMode === "categorias" && activeSelectedGroup
+        ? materiaisDoTipo.filter((mp) => getGrupoMateriaPrima(mp) === activeSelectedGroup)
+        : materiaisDoTipo;
 
     if (!busca.trim()) return base;
 
@@ -466,9 +595,10 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
         mp.codigo.toLowerCase().includes(q) ||
         mp.sku.toLowerCase().includes(q) ||
         mp.categoria.toLowerCase().includes(q) ||
-        mp.fornecedor?.nome?.toLowerCase().includes(q),
+        mp.fornecedor?.nome?.toLowerCase().includes(q) ||
+        formatDetalhesTipo(mp).toLowerCase().includes(q),
     );
-  }, [materiasPrimas, busca, activeSelectedCategory, viewMode]);
+  }, [materiaisDoTipo, busca, activeSelectedGroup, viewMode]);
 
   const itensOrdenados = useMemo(() => {
     const sorted = [...itensVisiveis].sort((a, b) => {
@@ -480,34 +610,38 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
     return sorted;
   }, [itensVisiveis, sortDirection, sortField]);
 
-  const categoriaSelecionadaResumo = useMemo<CategoriaResumo | null>(() => {
-    if (!activeSelectedCategory) return null;
-    return categorias.find((categoria) => categoria.nome === activeSelectedCategory) ?? null;
-  }, [categorias, activeSelectedCategory]);
+  const grupoSelecionadoResumo = useMemo<GrupoResumo | null>(() => {
+    if (!activeSelectedGroup) return null;
+    return grupos.find((grupo) => grupo.nome === activeSelectedGroup) ?? null;
+  }, [grupos, activeSelectedGroup]);
 
-  const carregarDadosModal = useCallback(async () => {
-    if (modalData) return modalData;
-    setLoadingModalData(true);
-    try {
-      const data = await getMPEditModalData();
-      setModalData(data);
-      return data;
-    } finally {
-      setLoadingModalData(false);
-    }
-  }, [modalData]);
+  const carregarDadosModal = useCallback(
+    async (tipoMaterial: TipoMaterial) => {
+      const cached = modalData[tipoMaterial];
+      if (cached) return cached;
+      setLoadingModalData(true);
+      try {
+        const data = await getMPEditModalData(tipoMaterial);
+        setModalData((current) => ({ ...current, [tipoMaterial]: data }));
+        return data;
+      } finally {
+        setLoadingModalData(false);
+      }
+    },
+    [modalData],
+  );
 
   const abrirNovo = useCallback(async () => {
     setEditando(null);
     setModalAberto(true);
-    void carregarDadosModal();
-  }, [carregarDadosModal]);
+    void carregarDadosModal(tipoMaterialAtivo);
+  }, [carregarDadosModal, tipoMaterialAtivo]);
 
   const abrirEditar = useCallback(
     async (mp: MateriaPrima) => {
       setEditando(mp);
       setModalAberto(true);
-      void carregarDadosModal();
+      void carregarDadosModal(mp.tipo_material);
     },
     [carregarDadosModal],
   );
@@ -526,16 +660,24 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
 
   const selecionarModo = useCallback((mode: ViewMode) => {
     setViewMode(mode);
-    setSelectedCategory(null);
+    setSelectedGroup(null);
   }, []);
 
-  const selecionarCategoria = useCallback((categoria: string) => {
+  const selecionarTipoMaterial = useCallback((tipoMaterial: TipoMaterial) => {
+    setSelectedTipoMaterial(tipoMaterial);
     setViewMode("categorias");
-    setSelectedCategory(categoria);
+    setSelectedGroup(null);
+    setBusca("");
+    setEditando(null);
+  }, []);
+
+  const selecionarGrupo = useCallback((grupo: string) => {
+    setViewMode("categorias");
+    setSelectedGroup(grupo);
   }, []);
 
   const voltarParaCategorias = useCallback(() => {
-    setSelectedCategory(null);
+    setSelectedGroup(null);
   }, []);
 
   const alternarOrdenacao = useCallback(
@@ -567,24 +709,31 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   }
 
   const emptyMessage =
-    viewMode === "categorias" && activeSelectedCategory
-      ? "Nenhuma matéria-prima encontrada nesta categoria."
-      : "Nenhuma matéria-prima cadastrada ainda.";
+    viewMode === "categorias" && activeSelectedGroup
+      ? `Nenhum item encontrado em ${activeSelectedGroup}.`
+      : `Nenhum item cadastrado em ${labelTipoMaterial(tipoMaterialAtivo)}.`;
+
+  const tipoSelecionadoResumo =
+    tipos.find((tipo) => tipo.tipo === tipoMaterialAtivo) ??
+    ({ tipo: tipoMaterialAtivo, quantidade: materiaisDoTipo.length } as TipoResumo);
+  const tipoModalAtual = editando?.tipo_material ?? tipoMaterialAtivo;
+  const modalDataAtual = modalData[tipoModalAtual];
+  const tipoSingular = getTipoSingular(tipoMaterialAtivo);
 
   return (
     <>
-      {/* Header da página */}
       <div
         className="flex items-center justify-between px-8 py-6"
         style={{ borderBottom: "1px solid var(--ac-border)" }}
       >
         <div>
           <h2 className="text-2xl font-bold" style={{ color: "var(--ac-text)" }}>
-            Matérias-Primas
+            {labelTipoMaterial(tipoMaterialAtivo)}
           </h2>
           <p className="text-sm mt-0.5" style={{ color: "var(--ac-muted)" }}>
-            {materiasPrimas.length}{" "}
-            {materiasPrimas.length === 1 ? "item cadastrado" : "itens cadastrados"}
+            {tipoSelecionadoResumo.quantidade}{" "}
+            {tipoSelecionadoResumo.quantidade === 1 ? "item cadastrado" : "itens cadastrados"} neste
+            contexto
           </p>
         </div>
         {perm.criar && (
@@ -599,12 +748,60 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Nova matéria-prima
+            Novo {tipoSingular.toLowerCase()}
           </Button>
         )}
       </div>
 
       <div className="px-8 py-4 flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {tipos.map((tipo) => {
+            const ativo = tipo.tipo === tipoMaterialAtivo;
+            return (
+              <button
+                key={tipo.tipo}
+                type="button"
+                onClick={() => selecionarTipoMaterial(tipo.tipo)}
+                className="rounded-2xl px-5 py-4 text-left transition-all cursor-pointer"
+                style={{
+                  background: ativo ? "var(--ac-bg)" : "var(--ac-card)",
+                  border: `1px solid ${ativo ? "var(--ac-accent)" : "var(--ac-border)"}`,
+                  boxShadow: ativo
+                    ? "0 0 0 2px color-mix(in srgb, var(--ac-accent) 18%, transparent)"
+                    : "none",
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p
+                      className="text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: "var(--ac-muted)" }}
+                    >
+                      Tipo de material
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold" style={{ color: "var(--ac-text)" }}>
+                      {labelTipoMaterial(tipo.tipo)}
+                    </h3>
+                  </div>
+                  <span
+                    className="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+                    style={{
+                      background: "var(--ac-card)",
+                      color: "var(--ac-text)",
+                      border: "1px solid var(--ac-border)",
+                    }}
+                  >
+                    {tipo.quantidade}
+                  </span>
+                </div>
+                <p className="mt-4 text-sm" style={{ color: "var(--ac-muted)" }}>
+                  {getTipoDescricao(tipo.tipo)}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-sm">
             <svg
@@ -622,8 +819,8 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
               type="text"
               placeholder={
                 buscaHabilitada
-                  ? "Buscar por nome, código, SKU, categoria ou fornecedor..."
-                  : "Selecione uma categoria ou use Todos para buscar..."
+                  ? `Buscar em ${labelTipoMaterial(tipoMaterialAtivo).toLowerCase()} por nome, código, SKU, categoria ou fornecedor...`
+                  : `Selecione ${agrupamentoMeta.labelSingular === "Categoria" ? "uma" : "um"} ${agrupamentoMeta.labelSingular.toLowerCase()} ou use Todos para buscar...`
               }
               value={busca}
               disabled={!buscaHabilitada}
@@ -654,7 +851,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
           >
             {(["categorias", "todos"] as const).map((mode) => {
               const active = viewMode === mode;
-              const label = mode === "categorias" ? "Categorias" : "Todos";
+              const label = mode === "categorias" ? agrupamentoMeta.labelPlural : "Todos";
               return (
                 <button
                   key={mode}
@@ -673,32 +870,34 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
           </div>
         </div>
 
-        {viewMode === "categorias" && activeSelectedCategory && (
+        {viewMode === "categorias" && activeSelectedGroup && (
           <div
             className="flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             style={{ background: "var(--ac-bg)", border: "1px solid var(--ac-border)" }}
           >
             <div className="flex items-center gap-2 text-sm" style={{ color: "var(--ac-muted)" }}>
+              <span>{labelTipoMaterial(tipoMaterialAtivo)}</span>
+              <span>/</span>
               <button
                 type="button"
                 onClick={voltarParaCategorias}
                 className="font-medium transition-colors cursor-pointer"
                 style={{ color: "var(--ac-muted)" }}
               >
-                Categorias
+                {agrupamentoMeta.labelPlural}
               </button>
               <span>/</span>
               <span className="font-semibold" style={{ color: "var(--ac-text)" }}>
-                {activeSelectedCategory}
+                {activeSelectedGroup}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm" style={{ color: "var(--ac-muted)" }}>
-                {categoriaSelecionadaResumo?.quantidade ?? itensOrdenados.length} item
-                {(categoriaSelecionadaResumo?.quantidade ?? itensOrdenados.length) === 1 ? "" : "s"}
+                {grupoSelecionadoResumo?.quantidade ?? itensOrdenados.length} item
+                {(grupoSelecionadoResumo?.quantidade ?? itensOrdenados.length) === 1 ? "" : "s"}
               </span>
               <Button variant="secondary" onClick={voltarParaCategorias}>
-                Voltar para categorias
+                Voltar para {agrupamentoMeta.labelPlural.toLowerCase()}
               </Button>
             </div>
           </div>
@@ -706,21 +905,22 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
       </div>
 
       <div className="px-8 pb-8">
-        {viewMode === "categorias" && !activeSelectedCategory ? (
-          categorias.length === 0 ? (
+        {viewMode === "categorias" && !activeSelectedGroup ? (
+          grupos.length === 0 ? (
             <div
               className="rounded-xl px-6 py-12 text-center text-sm"
               style={{ border: "1px solid var(--ac-border)", color: "var(--ac-muted)" }}
             >
-              Nenhuma categoria disponível no momento.
+              Nenhum {agrupamentoMeta.labelPlural.toLowerCase()} disponível em{" "}
+              {labelTipoMaterial(tipoMaterialAtivo).toLowerCase()}.
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {categorias.map((categoria) => (
+              {grupos.map((grupo) => (
                 <button
-                  key={categoria.nome}
+                  key={grupo.nome}
                   type="button"
-                  onClick={() => selecionarCategoria(categoria.nome)}
+                  onClick={() => selecionarGrupo(grupo.nome)}
                   className="rounded-2xl px-5 py-4 text-left transition-all cursor-pointer"
                   style={{
                     background: "var(--ac-card)",
@@ -741,13 +941,13 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
                         className="text-xs font-semibold uppercase tracking-wide"
                         style={{ color: "var(--ac-muted)" }}
                       >
-                        Categoria
+                        {agrupamentoMeta.labelSingular}
                       </p>
                       <h3
                         className="mt-1 text-lg font-semibold"
                         style={{ color: "var(--ac-text)" }}
                       >
-                        {categoria.nome}
+                        {grupo.nome}
                       </h3>
                     </div>
                     <span
@@ -758,11 +958,12 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
                         border: "1px solid var(--ac-border)",
                       }}
                     >
-                      {categoria.quantidade}
+                      {grupo.quantidade}
                     </span>
                   </div>
                   <p className="mt-4 text-sm" style={{ color: "var(--ac-muted)" }}>
-                    Abrir tabela desta categoria
+                    Abrir {labelTipoMaterial(tipoMaterialAtivo).toLowerCase()} deste{" "}
+                    {agrupamentoMeta.labelSingular.toLowerCase()}
                   </p>
                 </button>
               ))}
@@ -791,13 +992,23 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
 
       {/* Modal CRUD — fornecedores/categorias carregam sob demanda */}
       <MPModal
-        key={editando?.id ?? (modalAberto ? "novo" : "fechado")}
+        key={`${tipoModalAtual}-${editando?.id ?? (modalAberto ? "novo" : "fechado")}`}
         open={modalAberto}
         onClose={() => setModalAberto(false)}
-        fornecedores={modalData?.fornecedores ?? []}
-        categoriasMateriaPrima={modalData?.categoriasMateriaPrima ?? []}
-        loadingReferencias={loadingModalData && !modalData}
+        fornecedores={modalDataAtual?.fornecedores ?? []}
+        categoriasMateriaPrima={modalDataAtual?.categoriasMateriaPrima ?? []}
+        opcoesMateriais={
+          modalDataAtual?.opcoesMateriais ?? {
+            aco: [],
+            cabo: [],
+            botao: [],
+            carimbo: [],
+            bainha: [],
+          }
+        }
+        loadingReferencias={loadingModalData && !modalDataAtual}
         editando={editando}
+        tipoMaterialContext={tipoModalAtual}
         onSaved={refreshActiveTab}
       />
 

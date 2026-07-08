@@ -6,12 +6,15 @@ import type {
   MateriaPrima,
   Fornecedor,
   CategoriaMateriaPrimaDB,
+  OpcaoMaterial,
   Faca,
   CategoriaFacaDB,
   Cliente,
   OrdemCompra,
   FilaReposicao,
   StatusOC,
+  TipoMaterial,
+  TipoOpcaoMaterial,
 } from "@/types";
 
 const STATUS_OC_VALIDOS: readonly StatusOC[] = ["pendente", "enviada", "recebida"];
@@ -28,11 +31,6 @@ function normalizarStatusEPagoCache(row: { status?: unknown; pago?: unknown }): 
   if (!STATUS_OC_VALIDOS.includes(status as StatusOC)) status = "pendente";
   return { status: status as StatusOC, pago };
 }
-function embedUm<T>(v: T | T[] | null | undefined): T | null {
-  if (v == null) return null;
-  return Array.isArray(v) ? (v[0] ?? null) : v;
-}
-
 type TaxasLucroConfig = {
   taxa_producao: number;
   margem_lucro: number;
@@ -64,6 +62,7 @@ function mapFornecedor(row: {
   ie: string | null;
   codigoMunicipioIbge: string | null;
   createdAt: Date;
+  tiposMaterial?: { tipoMaterial: TipoMaterial }[];
 }): Fornecedor {
   return {
     id: row.id,
@@ -82,6 +81,7 @@ function mapFornecedor(row: {
     razao_social: row.razaoSocial,
     ie: row.ie,
     codigo_municipio_ibge: row.codigoMunicipioIbge,
+    tipos_materiais: row.tiposMaterial?.map((item) => item.tipoMaterial) ?? [],
     created_at: row.createdAt.toISOString(),
   };
 }
@@ -92,6 +92,7 @@ function mapMateriaPrima(row: {
   sku: string;
   nome: string;
   categoria: string;
+  tipoMaterial: TipoMaterial;
   fornecedorId: string | null;
   fotoUrl: string | null;
   precoCusto: { toNumber(): number };
@@ -99,6 +100,9 @@ function mapMateriaPrima(row: {
   estoqueMinimo: { toNumber(): number };
   createdAt: Date;
   fornecedor: { id: string; nome: string } | null;
+  lamina: { aco: string | null; carimbo: string | null } | null;
+  cabo: { tipo: string | null; cor: string | null } | null;
+  bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
 }): MateriaPrima {
   return {
     id: row.id,
@@ -106,12 +110,16 @@ function mapMateriaPrima(row: {
     sku: row.sku,
     nome: row.nome,
     categoria: row.categoria,
+    tipo_material: row.tipoMaterial,
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
     preco_custo: row.precoCusto.toNumber(),
     estoque_atual: row.estoqueAtual.toNumber(),
     estoque_minimo: row.estoqueMinimo.toNumber(),
     created_at: row.createdAt.toISOString(),
+    lamina: row.lamina,
+    cabo: row.cabo,
+    bainha: row.bainha,
     fornecedor: row.fornecedor
       ? {
           id: row.fornecedor.id,
@@ -130,6 +138,7 @@ function mapMateriaPrima(row: {
           razao_social: null,
           ie: null,
           codigo_municipio_ibge: null,
+          tipos_materiais: [],
           created_at: "",
         }
       : null,
@@ -145,6 +154,15 @@ function materiasPrimasCache(userId: string) {
           fornecedor: {
             select: { id: true, nome: true },
           },
+          lamina: {
+            select: { aco: true, carimbo: true },
+          },
+          cabo: {
+            select: { tipo: true, cor: true },
+          },
+          bainha: {
+            select: { polegadas: true, modelo: true, botao: true },
+          },
         },
       });
       return data.map(mapMateriaPrima);
@@ -158,11 +176,15 @@ function fornecedoresSelectCache(userId: string) {
   return unstable_cache(
     async (): Promise<Pick<Fornecedor, "id" | "nome">[]> => {
       const data = await prisma.fornecedor.findMany({
-        select: { id: true, nome: true },
+        select: { id: true, nome: true, tiposMaterial: { select: { tipoMaterial: true } } },
         orderBy: { nome: "asc" },
         take: 80,
       });
-      return data;
+      return data.map((row) => ({
+        id: row.id,
+        nome: row.nome,
+        tipos_materiais: row.tiposMaterial.map((item) => item.tipoMaterial),
+      }));
     },
     ["list-fornecedores-select", userId],
     { revalidate: LIST_REVALIDATE, tags: [`list-fornecedores-select-${userId}`] },
@@ -186,6 +208,24 @@ function mapCategoriaMateriaPrima(row: {
     id: row.id,
     nome: row.nome,
     ordem: row.ordem,
+    created_at: row.createdAt.toISOString(),
+  };
+}
+
+function mapOpcaoMaterial(row: {
+  id: string;
+  tipo: TipoOpcaoMaterial;
+  nome: string;
+  ordem: number;
+  ativo: boolean;
+  createdAt: Date;
+}): OpcaoMaterial {
+  return {
+    id: row.id,
+    tipo: row.tipo,
+    nome: row.nome,
+    ordem: row.ordem,
+    ativo: row.ativo,
     created_at: row.createdAt.toISOString(),
   };
 }
@@ -230,6 +270,29 @@ function categoriasMPCache(userId: string) {
   );
 }
 
+function opcoesMaterialCache(userId: string, tipo: TipoOpcaoMaterial, incluirInativos = false) {
+  return unstable_cache(
+    async (): Promise<OpcaoMaterial[]> => {
+      const rows = await prisma.opcaoMaterial.findMany({
+        where: {
+          tipo,
+          ...(incluirInativos ? {} : { ativo: true }),
+        },
+        orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      });
+      return rows.map(mapOpcaoMaterial);
+    },
+    ["list-opcoes-material", userId, tipo, incluirInativos ? "all" : "active"],
+    {
+      revalidate: LIST_REVALIDATE,
+      tags: [
+        `list-opcoes-material-${userId}-${tipo}-active`,
+        `list-opcoes-material-${userId}-${tipo}-all`,
+      ],
+    },
+  );
+}
+
 export function fetchMatériasPrimasList(userId: string): Promise<MateriaPrima[]> {
   return materiasPrimasCache(userId)();
 }
@@ -244,6 +307,14 @@ export function fetchCategoriasMateriaPrimaList(
   userId: string,
 ): Promise<CategoriaMateriaPrimaDB[]> {
   return categoriasMPCache(userId)();
+}
+
+export function fetchOpcoesMaterialList(
+  userId: string,
+  tipo: TipoOpcaoMaterial,
+  incluirInativos = false,
+): Promise<OpcaoMaterial[]> {
+  return opcoesMaterialCache(userId, tipo, incluirInativos)();
 }
 
 // ============================================================
@@ -367,6 +438,11 @@ function fornecedoresFullCache(userId: string) {
       const data = await prisma.fornecedor.findMany({
         orderBy: { nome: "asc" },
         take: 120,
+        include: {
+          tiposMaterial: {
+            select: { tipoMaterial: true },
+          },
+        },
       });
       return data.map(mapFornecedor);
     },

@@ -42,6 +42,7 @@ export const TABLE_TO_KEYS: Record<string, ReadonlyArray<readonly unknown[]>> = 
   categorias_faca: [qk.categorias.faca(), qk.facas.all],
   categorias_materia_prima: [qk.categorias.materiaPrima(), qk.materiasPrimas.all],
   categorias_consumivel: [qk.categorias.consumivel(), qk.consumiveis.all],
+  opcoes_material: [qk.opcoesMateriais.all, qk.materiasPrimas.all, qk.facas.all],
 }
 
 export const REALTIME_TABLES = Object.keys(TABLE_TO_KEYS)

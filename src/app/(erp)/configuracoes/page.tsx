@@ -3,6 +3,7 @@ import { ConfiguracoesClient } from '@/components/configuracoes/configuracoes-cl
 import { getCategoriasFaca } from '@/lib/actions/categorias-faca'
 import { getCategoriasMateriaPrima } from '@/lib/actions/categorias-materia-prima'
 import { getCategoriasConsumivel } from '@/lib/actions/categorias-consumivel'
+import { getOpcoesMaterialPorTipo } from '@/lib/actions/opcoes-materiais'
 import { getTaxasLucroConfig } from '@/lib/actions/app-config'
 import { getEmpresa } from '@/lib/actions/empresa'
 import { getPermissoesEfetivas } from '@/lib/auth'
@@ -19,11 +20,12 @@ export default async function ConfiguracoesPage() {
 }
 
 async function ConfiguracoesPageData() {
-  const [perms, categorias, categoriasMateriaPrima, categoriasConsumivel, taxasLucro, empresa] = await Promise.all([
+  const [perms, categorias, categoriasMateriaPrima, categoriasConsumivel, opcoesMateriais, taxasLucro, empresa] = await Promise.all([
     getPermissoesEfetivas(),
     getCategoriasFaca(),
     getCategoriasMateriaPrima(),
     getCategoriasConsumivel(),
+    getOpcoesMaterialPorTipo(true),
     getTaxasLucroConfig(),
     getEmpresa().catch(() => null),
   ])
@@ -33,6 +35,7 @@ async function ConfiguracoesPageData() {
         categorias={categorias}
         categoriasMateriaPrima={categoriasMateriaPrima}
         categoriasConsumivel={categoriasConsumivel}
+        opcoesMateriais={opcoesMateriais}
         taxasLucro={taxasLucro}
         permTaxasLucro={perms.taxas_lucro}
         empresa={empresa}

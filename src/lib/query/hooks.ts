@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Hooks de leitura por recurso. Cada hook:
@@ -8,26 +8,31 @@
  * - é invalidado automaticamente pelo `RealtimeProvider` quando a tabela muda
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from "@tanstack/react-query";
 
-import { qk } from '@/lib/query/keys'
-import { getMatériasPrimas, getMPDetalhe } from '@/lib/actions/materias-primas'
-import { getFacas, getFacaDetalhe, getFacaBOM } from '@/lib/actions/facas'
-import { getFornecedores } from '@/lib/actions/fornecedores'
-import { getClientes } from '@/lib/actions/clientes'
-import { getVendas } from '@/lib/actions/vendas'
-import { getOrcamentos } from '@/lib/actions/orcamentos'
-import { getOrdensCompra, getFilaReposicaoList, getUsuariosParaRegistroOC } from '@/lib/actions/ordens-compra'
-import { getConsumiveis } from '@/lib/actions/consumiveis'
-import { listarGastos } from '@/lib/actions/gastos'
-import { listarMovimentacoes } from '@/lib/actions/movimentacao'
-import { listarTiposGasto } from '@/lib/actions/tipos-gasto'
-import { listarBoletos } from '@/lib/actions/boletos'
-import { getUsuarios } from '@/lib/actions/usuarios'
-import { getCargos } from '@/lib/actions/cargos'
-import { getCategoriasFaca } from '@/lib/actions/categorias-faca'
-import { getCategoriasMateriaPrima } from '@/lib/actions/categorias-materia-prima'
-import { getCategoriasConsumivel } from '@/lib/actions/categorias-consumivel'
+import { qk } from "@/lib/query/keys";
+import { getMatériasPrimas, getMPDetalhe } from "@/lib/actions/materias-primas";
+import { getFacas, getFacaDetalhe, getFacaBOM } from "@/lib/actions/facas";
+import { getFornecedores } from "@/lib/actions/fornecedores";
+import { getClientes } from "@/lib/actions/clientes";
+import { getVendas } from "@/lib/actions/vendas";
+import { getOrcamentos } from "@/lib/actions/orcamentos";
+import {
+  getOrdensCompra,
+  getFilaReposicaoList,
+  getUsuariosParaRegistroOC,
+} from "@/lib/actions/ordens-compra";
+import { getConsumiveis } from "@/lib/actions/consumiveis";
+import { listarGastos } from "@/lib/actions/gastos";
+import { listarMovimentacoes } from "@/lib/actions/movimentacao";
+import { listarTiposGasto } from "@/lib/actions/tipos-gasto";
+import { listarBoletos } from "@/lib/actions/boletos";
+import { getUsuarios } from "@/lib/actions/usuarios";
+import { getCargos } from "@/lib/actions/cargos";
+import { getCategoriasFaca } from "@/lib/actions/categorias-faca";
+import { getCategoriasMateriaPrima } from "@/lib/actions/categorias-materia-prima";
+import { getCategoriasConsumivel } from "@/lib/actions/categorias-consumivel";
+import { getOpcoesMaterial } from "@/lib/actions/opcoes-materiais";
 
 import type {
   MateriaPrima,
@@ -47,27 +52,32 @@ import type {
   CategoriaConsumivelDB,
   TipoGastoDB,
   Movimentacao,
-} from '@/types'
-import type { MPDetalheData } from '@/lib/actions/materias-primas'
-import type { FacaDetalheData } from '@/lib/actions/facas'
+  TipoMaterial,
+  OpcaoMaterial,
+  TipoOpcaoMaterial,
+} from "@/types";
+import type { MPDetalheData } from "@/lib/actions/materias-primas";
+import type { FacaDetalheData } from "@/lib/actions/facas";
 
-type Opts<T> = { initialData?: T }
+type Opts<T> = { initialData?: T };
 
 function queryOptsWithInitialData<T>(opts: Opts<T>) {
-  if (opts.initialData === undefined) return {}
+  if (opts.initialData === undefined) return {};
   return {
     initialData: opts.initialData,
     staleTime: 60_000,
     refetchOnMount: false as const,
-  }
+  };
 }
 
 export function useMateriasPrimas(opts: Opts<MateriaPrima[]> = {}) {
+  const tipoMaterial = (opts as Opts<MateriaPrima[]> & { tipoMaterial?: TipoMaterial })
+    .tipoMaterial;
   return useQuery({
-    queryKey: qk.materiasPrimas.list(),
-    queryFn: () => getMatériasPrimas(),
+    queryKey: qk.materiasPrimas.list(tipoMaterial),
+    queryFn: () => getMatériasPrimas(undefined, tipoMaterial),
     ...queryOptsWithInitialData(opts),
-  })
+  });
 }
 
 export function useMPDetalhe(id: string, opts: Opts<MPDetalheData> = {}) {
@@ -76,7 +86,7 @@ export function useMPDetalhe(id: string, opts: Opts<MPDetalheData> = {}) {
     queryFn: () => getMPDetalhe(id),
     initialData: opts.initialData,
     enabled: !!id,
-  })
+  });
 }
 
 export function useFacas(opts: Opts<Faca[]> = {}) {
@@ -84,7 +94,7 @@ export function useFacas(opts: Opts<Faca[]> = {}) {
     queryKey: qk.facas.list(),
     queryFn: () => getFacas(120),
     ...queryOptsWithInitialData(opts),
-  })
+  });
 }
 
 export function useFacaDetalhe(id: string, opts: Opts<FacaDetalheData> = {}) {
@@ -93,24 +103,25 @@ export function useFacaDetalhe(id: string, opts: Opts<FacaDetalheData> = {}) {
     queryFn: () => getFacaDetalhe(id),
     initialData: opts.initialData,
     enabled: !!id,
-  })
+  });
 }
 
 /** BOM da faca — chave dentro do escopo da faca para ser invalidada em conjunto. */
 export function useFacaBOM(facaId: string) {
   return useQuery({
-    queryKey: [...qk.facas.detalhe(facaId), 'bom'] as const,
+    queryKey: [...qk.facas.detalhe(facaId), "bom"] as const,
     queryFn: () => getFacaBOM(facaId),
     enabled: !!facaId,
-  })
+  });
 }
 
 export function useFornecedores(opts: Opts<Fornecedor[]> = {}) {
+  const tipoMaterial = (opts as Opts<Fornecedor[]> & { tipoMaterial?: TipoMaterial }).tipoMaterial;
   return useQuery({
-    queryKey: qk.fornecedores.list(),
-    queryFn: () => getFornecedores(80),
+    queryKey: qk.fornecedores.list(tipoMaterial),
+    queryFn: () => getFornecedores(80, tipoMaterial),
     ...queryOptsWithInitialData(opts),
-  })
+  });
 }
 
 export function useClientes(opts: Opts<Cliente[]> = {}) {
@@ -118,7 +129,7 @@ export function useClientes(opts: Opts<Cliente[]> = {}) {
     queryKey: qk.clientes.list(),
     queryFn: () => getClientes(120),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useVendas(opts: Opts<Pedido[]> = {}) {
@@ -126,7 +137,7 @@ export function useVendas(opts: Opts<Pedido[]> = {}) {
     queryKey: qk.vendas.list(),
     queryFn: () => getVendas(80),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useOrcamentos(opts: Opts<Orcamento[]> = {}) {
@@ -134,7 +145,7 @@ export function useOrcamentos(opts: Opts<Orcamento[]> = {}) {
     queryKey: qk.orcamentos.list(),
     queryFn: () => getOrcamentos(80),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useOrdensCompra(opts: Opts<Awaited<ReturnType<typeof getOrdensCompra>>> = {}) {
@@ -142,12 +153,15 @@ export function useOrdensCompra(opts: Opts<Awaited<ReturnType<typeof getOrdensCo
     queryKey: qk.ordensCompra.list(),
     queryFn: () => getOrdensCompra(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 /** Usuários ativos para registrar quem alterou OC — cache longo; compartilhado entre aberturas do modal. */
 export function useUsuariosParaRegistroOC(
-  opts: { enabled?: boolean; initialData?: Awaited<ReturnType<typeof getUsuariosParaRegistroOC>> } = {},
+  opts: {
+    enabled?: boolean;
+    initialData?: Awaited<ReturnType<typeof getUsuariosParaRegistroOC>>;
+  } = {},
 ) {
   return useQuery({
     queryKey: qk.usuarios.registroOC(),
@@ -156,15 +170,17 @@ export function useUsuariosParaRegistroOC(
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
     initialData: opts.initialData,
-  })
+  });
 }
 
-export function useFilaReposicao(opts: Opts<Awaited<ReturnType<typeof getFilaReposicaoList>>> = {}) {
+export function useFilaReposicao(
+  opts: Opts<Awaited<ReturnType<typeof getFilaReposicaoList>>> = {},
+) {
   return useQuery({
     queryKey: qk.ordensCompra.fila(),
     queryFn: () => getFilaReposicaoList(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useConsumiveis(opts: Opts<Consumivel[]> = {}) {
@@ -172,7 +188,7 @@ export function useConsumiveis(opts: Opts<Consumivel[]> = {}) {
     queryKey: qk.consumiveis.list(),
     queryFn: () => getConsumiveis(120),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useGastos(opts: Opts<Gasto[]> = {}) {
@@ -180,7 +196,7 @@ export function useGastos(opts: Opts<Gasto[]> = {}) {
     queryKey: qk.gastos.list(),
     queryFn: () => listarGastos(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useMovimentacoes(opts: Opts<Movimentacao[]> = {}) {
@@ -188,7 +204,7 @@ export function useMovimentacoes(opts: Opts<Movimentacao[]> = {}) {
     queryKey: qk.movimentacao.list(),
     queryFn: () => listarMovimentacoes(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useTiposGasto(opts: Opts<TipoGastoDB[]> = {}) {
@@ -196,7 +212,7 @@ export function useTiposGasto(opts: Opts<TipoGastoDB[]> = {}) {
     queryKey: qk.tiposGasto.list(),
     queryFn: () => listarTiposGasto(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useBoletos(tipo?: BoletoTipo, opts: Opts<Boleto[]> = {}) {
@@ -204,7 +220,7 @@ export function useBoletos(tipo?: BoletoTipo, opts: Opts<Boleto[]> = {}) {
     queryKey: qk.boletos.list(tipo),
     queryFn: () => listarBoletos(tipo),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useUsuarios(opts: Opts<Usuario[]> = {}) {
@@ -212,7 +228,7 @@ export function useUsuarios(opts: Opts<Usuario[]> = {}) {
     queryKey: qk.usuarios.list(),
     queryFn: () => getUsuarios(100),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useCargos(opts: Opts<Cargo[]> = {}) {
@@ -220,7 +236,7 @@ export function useCargos(opts: Opts<Cargo[]> = {}) {
     queryKey: qk.cargos.list(),
     queryFn: () => getCargos(50),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useCategoriasFaca(opts: Opts<CategoriaFacaDB[]> = {}) {
@@ -228,7 +244,7 @@ export function useCategoriasFaca(opts: Opts<CategoriaFacaDB[]> = {}) {
     queryKey: qk.categorias.faca(),
     queryFn: () => getCategoriasFaca(),
     initialData: opts.initialData,
-  })
+  });
 }
 
 export function useCategoriasMateriaPrima(opts: Opts<CategoriaMateriaPrimaDB[]> = {}) {
@@ -236,7 +252,7 @@ export function useCategoriasMateriaPrima(opts: Opts<CategoriaMateriaPrimaDB[]> 
     queryKey: qk.categorias.materiaPrima(),
     queryFn: () => getCategoriasMateriaPrima(),
     ...queryOptsWithInitialData(opts),
-  })
+  });
 }
 
 export function useCategoriasConsumivel(opts: Opts<CategoriaConsumivelDB[]> = {}) {
@@ -244,5 +260,17 @@ export function useCategoriasConsumivel(opts: Opts<CategoriaConsumivelDB[]> = {}
     queryKey: qk.categorias.consumivel(),
     queryFn: () => getCategoriasConsumivel(),
     initialData: opts.initialData,
-  })
+  });
+}
+
+export function useOpcoesMaterial(
+  tipo: TipoOpcaoMaterial,
+  opts: Opts<OpcaoMaterial[]> & { incluirInativos?: boolean } = {},
+) {
+  const incluirInativos = opts.incluirInativos ?? false;
+  return useQuery({
+    queryKey: qk.opcoesMateriais.list(tipo, incluirInativos),
+    queryFn: () => getOpcoesMaterial(tipo, incluirInativos),
+    ...queryOptsWithInitialData(opts),
+  });
 }
