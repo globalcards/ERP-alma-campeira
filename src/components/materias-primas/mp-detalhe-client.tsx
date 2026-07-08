@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -275,9 +275,6 @@ export function MPDetalheClient({
                 }}
               >
                 {labelTipoMaterial(mp.tipo_material)}
-              </span>
-              <span className="text-sm" style={{ color: "var(--ac-muted)" }}>
-                Categoria: <strong style={{ color: "var(--ac-text)" }}>{mp.categoria}</strong>
               </span>
               {mp.fornecedor && (
                 <span className="text-sm" style={{ color: "var(--ac-muted)" }}>
@@ -689,7 +686,6 @@ export function MPDetalheClient({
         onClose={() => setEditModalOpen(false)}
         editando={mp}
         fornecedores={editModalData?.fornecedores ?? []}
-        categoriasMateriaPrima={editModalData?.categoriasMateriaPrima ?? []}
         opcoesMateriais={
           editModalData?.opcoesMateriais ?? {
             aco: [],

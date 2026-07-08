@@ -4,7 +4,6 @@ import { useTheme } from 'next-themes'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CategoriasFacaSection } from './categorias-faca-section'
-import { CategoriasMateriaPrimaSection } from './categorias-materia-prima-section'
 import { CategoriasConsumivelSection } from './categorias-consumivel-section'
 import { EmpresaSection } from './empresa-section'
 import { OpcoesMaterialSection } from './opcoes-material-section'
@@ -13,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { updateTaxasLucroConfig, type TaxasLucroConfig } from '@/lib/actions/app-config'
 import type {
   CategoriaFacaDB,
-  CategoriaMateriaPrimaDB,
   CategoriaConsumivelDB,
   Empresa,
   OpcoesMateriaisPorTipo,
@@ -148,7 +146,6 @@ const SETTINGS_SECTIONS = [
   { id: 'config-empresa', label: 'Empresa' },
   { id: 'config-taxas-lucro', label: 'Taxa' },
   { id: 'categorias-faca', label: 'Facas' },
-  { id: 'categorias-materia-prima', label: 'Matérias-primas' },
   { id: 'categorias-consumivel', label: 'Consumíveis' },
   { id: 'config-conta', label: 'Conta' },
 ] as const
@@ -254,7 +251,6 @@ type PermTaxas = { ver: boolean; editar: boolean }
 
 type Props = {
   categorias: CategoriaFacaDB[]
-  categoriasMateriaPrima: CategoriaMateriaPrimaDB[]
   categoriasConsumivel: CategoriaConsumivelDB[]
   opcoesMateriais: OpcoesMateriaisPorTipo
   taxasLucro: TaxasLucroConfig
@@ -264,7 +260,6 @@ type Props = {
 
 export function ConfiguracoesClient({
   categorias,
-  categoriasMateriaPrima,
   categoriasConsumivel,
   opcoesMateriais,
   taxasLucro,
@@ -598,7 +593,6 @@ export function ConfiguracoesClient({
             )}
 
             <CategoriasFacaSection categorias={categorias} />
-            <CategoriasMateriaPrimaSection categorias={categoriasMateriaPrima} />
             <OpcoesMaterialSection tipo="aco" opcoes={opcoesMateriais.aco} />
             <OpcoesMaterialSection tipo="cabo" opcoes={opcoesMateriais.cabo} />
             <OpcoesMaterialSection tipo="botao" opcoes={opcoesMateriais.botao} />

@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { ConfiguracoesClient } from '@/components/configuracoes/configuracoes-client'
 import { getCategoriasFaca } from '@/lib/actions/categorias-faca'
-import { getCategoriasMateriaPrima } from '@/lib/actions/categorias-materia-prima'
 import { getCategoriasConsumivel } from '@/lib/actions/categorias-consumivel'
 import { getOpcoesMaterialPorTipo } from '@/lib/actions/opcoes-materiais'
 import { getTaxasLucroConfig } from '@/lib/actions/app-config'
@@ -20,10 +19,9 @@ export default async function ConfiguracoesPage() {
 }
 
 async function ConfiguracoesPageData() {
-  const [perms, categorias, categoriasMateriaPrima, categoriasConsumivel, opcoesMateriais, taxasLucro, empresa] = await Promise.all([
+  const [perms, categorias, categoriasConsumivel, opcoesMateriais, taxasLucro, empresa] = await Promise.all([
     getPermissoesEfetivas(),
     getCategoriasFaca(),
-    getCategoriasMateriaPrima(),
     getCategoriasConsumivel(),
     getOpcoesMaterialPorTipo(true),
     getTaxasLucroConfig(),
@@ -33,7 +31,6 @@ async function ConfiguracoesPageData() {
     <div data-nav-content-ready="Configurações">
       <ConfiguracoesClient
         categorias={categorias}
-        categoriasMateriaPrima={categoriasMateriaPrima}
         categoriasConsumivel={categoriasConsumivel}
         opcoesMateriais={opcoesMateriais}
         taxasLucro={taxasLucro}

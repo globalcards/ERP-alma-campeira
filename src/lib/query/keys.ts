@@ -87,7 +87,6 @@ export const qk = {
   categorias: {
     all: ["categorias"] as const,
     faca: () => [...qk.categorias.all, "faca"] as const,
-    materiaPrima: () => [...qk.categorias.all, "materia-prima"] as const,
     consumivel: () => [...qk.categorias.all, "consumivel"] as const,
   },
   opcoesMateriais: {

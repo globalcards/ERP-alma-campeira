@@ -10,7 +10,6 @@ import {
   fetchMatériasPrimasList,
   fetchFornecedoresFullList,
   fetchFornecedoresSelect,
-  fetchCategoriasMateriaPrimaList,
   fetchFacasComCustoList,
   fetchCategoriasFacaList,
   fetchClientesList,
@@ -32,7 +31,6 @@ function aquecerListas(userId: string, perms: ReturnType<typeof permissoesParaVe
   const fire = (p: Promise<unknown>) => { p.catch(() => {}) }
   if (perms.materias_primas) {
     fire(fetchMatériasPrimasList(userId))
-    fire(fetchCategoriasMateriaPrimaList(userId))
     fire(fetchFornecedoresSelect(userId))
   }
   if (perms.facas) {

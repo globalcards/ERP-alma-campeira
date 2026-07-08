@@ -30,7 +30,6 @@ import { listarBoletos } from "@/lib/actions/boletos";
 import { getUsuarios } from "@/lib/actions/usuarios";
 import { getCargos } from "@/lib/actions/cargos";
 import { getCategoriasFaca } from "@/lib/actions/categorias-faca";
-import { getCategoriasMateriaPrima } from "@/lib/actions/categorias-materia-prima";
 import { getCategoriasConsumivel } from "@/lib/actions/categorias-consumivel";
 import { getOpcoesMaterial } from "@/lib/actions/opcoes-materiais";
 
@@ -48,7 +47,6 @@ import type {
   Usuario,
   Cargo,
   CategoriaFacaDB,
-  CategoriaMateriaPrimaDB,
   CategoriaConsumivelDB,
   TipoGastoDB,
   Movimentacao,
@@ -244,14 +242,6 @@ export function useCategoriasFaca(opts: Opts<CategoriaFacaDB[]> = {}) {
     queryKey: qk.categorias.faca(),
     queryFn: () => getCategoriasFaca(),
     initialData: opts.initialData,
-  });
-}
-
-export function useCategoriasMateriaPrima(opts: Opts<CategoriaMateriaPrimaDB[]> = {}) {
-  return useQuery({
-    queryKey: qk.categorias.materiaPrima(),
-    queryFn: () => getCategoriasMateriaPrima(),
-    ...queryOptsWithInitialData(opts),
   });
 }
 

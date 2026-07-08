@@ -76,8 +76,70 @@ function fmtQtd(n: number) {
   return Number.isInteger(n) ? String(n) : n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 }
 
-function normalizarCategoria(categoria: string | null | undefined) {
-  return (categoria ?? "").trim().toLocaleLowerCase("pt-BR");
+function normalizarAgrupadorMaterial(valor: string | null | undefined) {
+  return (valor ?? "").trim().toLocaleLowerCase("pt-BR");
+}
+
+function obterAgrupadorMaterial(mp: MateriaPrima): string {
+  if (mp.tipo_material === "lamina") return mp.lamina?.aco?.trim() || "Sem aço configurado";
+  if (mp.tipo_material === "cabo") return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  if (mp.tipo_material === "bainha") return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
+  return "Outros materiais";
+}
+
+function obterRotuloAgrupador(tipoMaterial: TipoMaterial | ""): string {
+  if (tipoMaterial === "lamina") return "Aço";
+  if (tipoMaterial === "cabo") return "Tipo";
+  if (tipoMaterial === "bainha") return "Modelo";
+  return "Lista";
+}
+
+type ColunaEspecificaMaterial = {
+  key: string;
+  label: string;
+  value: (mp: OrdemCompraItem["materia_prima"] | MateriaPrima | null | undefined) => string;
+};
+
+function getColunasEspecificasMaterial(
+  tipoMaterial: TipoMaterial | "" | null,
+): ColunaEspecificaMaterial[] {
+  switch (tipoMaterial) {
+    case "lamina":
+      return [
+        { key: "aco", label: "Aço", value: (mp) => mp?.lamina?.aco?.trim() || "—" },
+        { key: "carimbo", label: "Carimbo", value: (mp) => mp?.lamina?.carimbo?.trim() || "—" },
+      ];
+    case "cabo":
+      return [
+        { key: "tipo", label: "Tipo", value: (mp) => mp?.cabo?.tipo?.trim() || "—" },
+        { key: "cor", label: "Cor", value: (mp) => mp?.cabo?.cor?.trim() || "—" },
+      ];
+    case "bainha":
+      return [
+        {
+          key: "polegadas",
+          label: "Polegadas",
+          value: (mp) => mp?.bainha?.polegadas?.trim() || "—",
+        },
+        { key: "modelo", label: "Modelo", value: (mp) => mp?.bainha?.modelo?.trim() || "—" },
+        { key: "botao", label: "Botão", value: (mp) => mp?.bainha?.botao?.trim() || "—" },
+      ];
+    default:
+      return [];
+  }
+}
+
+function formatResumoMaterialOpcao(mp: OrdemCompraItem["materia_prima"] | MateriaPrima): string {
+  if (!mp) return "—";
+  const base = [mp.sku ? `SKU: ${mp.sku}` : `Código: ${mp.codigo}`];
+  const colunas = getColunasEspecificasMaterial(mp.tipo_material);
+  for (const coluna of colunas) {
+    const valor = coluna.value(mp);
+    if (valor !== "—") {
+      base.push(`${coluna.label}: ${valor}`);
+    }
+  }
+  return base.join(" · ");
 }
 
 function subtotalOC(itens: OrdemCompraItem[]) {
@@ -539,13 +601,15 @@ function ocBodyHtml(
       ? itens
           .map((item) => {
             const sub = (item.preco_unitario ?? 0) * item.quantidade;
-            const categoria = item.materia_prima?.categoria?.trim();
+            const tipoMaterial = item.materia_prima?.tipo_material
+              ? labelTipoMaterial(item.materia_prima.tipo_material)
+              : "Matéria-prima";
             return `
         <tr>
           <td>${escapeHtml(item.materia_prima?.codigo ?? "—")}</td>
           <td>
             <div class="item-name">${escapeHtml(item.materia_prima?.nome ?? "Item sem nome")}</div>
-            <div class="item-meta">${escapeHtml(categoria ? `Categoria: ${categoria}` : "Matéria-prima cadastrada sem categoria")}</div>
+            <div class="item-meta">${escapeHtml(tipoMaterial)}</div>
           </td>
           <td class="numeric">${escapeHtml(fmtQtd(item.quantidade))}</td>
           ${
@@ -954,16 +1018,16 @@ function OcDetalheModal({
     [itens],
   );
   const tipoMaterialOcAtivo = tiposOc.length === 1 ? tiposOc[0] : null;
+  const colunasEspecificasOc = useMemo(
+    () => getColunasEspecificasMaterial(tipoMaterialOcAtivo),
+    [tipoMaterialOcAtivo],
+  );
 
   const opcoesMateriaPrima = useMemo(
     () =>
       materiasPrimas
         .filter((mp) => !idsMateriaJaNoPedido.has(mp.id))
-        .filter((mp) =>
-          tipoMaterialOcAtivo
-            ? mp.tipo_material === tipoMaterialOcAtivo
-            : true,
-        )
+        .filter((mp) => (tipoMaterialOcAtivo ? mp.tipo_material === tipoMaterialOcAtivo : true))
         .map((mp) => {
           const imageUrl =
             getOptimizedImageUrl(mp.foto_url, {
@@ -976,8 +1040,8 @@ function OcDetalheModal({
           return {
             value: mp.id,
             label: mp.nome,
-            secondaryLabel: mp.sku,
-            searchText: `${mp.nome} ${mp.sku} ${mp.categoria} ${labelTipoMaterial(mp.tipo_material)}`,
+            secondaryLabel: formatResumoMaterialOpcao(mp),
+            searchText: `${mp.nome} ${formatResumoMaterialOpcao(mp)} ${labelTipoMaterial(mp.tipo_material)}`,
             imageUrl,
           };
         }),
@@ -1256,17 +1320,33 @@ function OcDetalheModal({
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: "color-mix(in srgb, var(--ac-border) 40%, transparent)" }}>
-                {["Código", "Matéria-Prima", "Vendido", "Qtd Total", "Preço Unit.", "Subtotal"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {["Código", "Matéria-Prima"].map((h) => (
+                  <th
+                    key={h}
+                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    {h}
+                  </th>
+                ))}
+                {colunasEspecificasOc.map((coluna) => (
+                  <th
+                    key={coluna.key}
+                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    {coluna.label}
+                  </th>
+                ))}
+                {["Vendido", "Qtd Total", "Preço Unit.", "Subtotal"].map((h) => (
+                  <th
+                    key={h}
+                    className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -1299,6 +1379,15 @@ function OcDetalheModal({
                     <td className="px-3 py-2.5 font-medium" style={{ color: "var(--ac-text)" }}>
                       {item.materia_prima?.nome ?? "—"}
                     </td>
+                    {colunasEspecificasOc.map((coluna) => (
+                      <td
+                        key={coluna.key}
+                        className="px-3 py-2.5 text-xs"
+                        style={{ color: "var(--ac-muted)" }}
+                      >
+                        {coluna.value(item.materia_prima)}
+                      </td>
+                    ))}
                     <td className="px-3 py-2.5 text-right" style={{ color: "var(--ac-muted)" }}>
                       {fmtQtd(vendido)}
                     </td>
@@ -1353,7 +1442,7 @@ function OcDetalheModal({
                 }}
               >
                 <td
-                  colSpan={5}
+                  colSpan={5 + colunasEspecificasOc.length}
                   className="px-3 py-2.5 text-right font-semibold text-sm"
                   style={{ color: "var(--ac-muted)" }}
                 >
@@ -1369,7 +1458,7 @@ function OcDetalheModal({
               {descontoTotalAtual > 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={5 + colunasEspecificasOc.length}
                     className="px-3 py-2.5 text-right font-semibold text-sm"
                     style={{ color: "var(--ac-muted)" }}
                   >
@@ -1385,7 +1474,7 @@ function OcDetalheModal({
               )}
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={5 + colunasEspecificasOc.length}
                   className="px-3 py-2.5 text-right font-semibold text-sm"
                   style={{ color: "var(--ac-muted)" }}
                 >
@@ -1938,7 +2027,7 @@ function OcCriarModal({
 }) {
   const [fornecedorId, setFornecedorId] = useState("");
   const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial | "">("");
-  const [categoria, setCategoria] = useState("");
+  const [agrupador, setAgrupador] = useState("");
   const [descontoPercentual, setDescontoPercentual] = useState("0");
   const [observacao, setObservacao] = useState("");
   const [linhas, setLinhas] = useState<LinhaCriarOc[]>(() => [
@@ -1955,23 +2044,34 @@ function OcCriarModal({
     () => (tipoMaterial ? materiasPrimas.filter((mp) => mp.tipo_material === tipoMaterial) : []),
     [materiasPrimas, tipoMaterial],
   );
-  const categoriasDisponiveis = useMemo(
+  const agrupadoresDisponiveis = useMemo(
     () =>
       Array.from(
-        new Set(materiasPrimasDoTipo.map((mp) => mp.categoria.trim()).filter((nome) => nome.length > 0)),
+        new Set(
+          materiasPrimasDoTipo
+            .map((mp) => obterAgrupadorMaterial(mp))
+            .filter((nome) => nome.length > 0),
+        ),
       ).sort((a, b) => a.localeCompare(b, "pt-BR")),
     [materiasPrimasDoTipo],
   );
   const materiasPrimasFiltradas = useMemo(
     () =>
       materiasPrimasDoTipo.filter((mp) =>
-        categoria ? normalizarCategoria(mp.categoria) === normalizarCategoria(categoria) : true,
+        agrupador
+          ? normalizarAgrupadorMaterial(obterAgrupadorMaterial(mp)) ===
+            normalizarAgrupadorMaterial(agrupador)
+          : true,
       ),
-    [categoria, materiasPrimasDoTipo],
+    [agrupador, materiasPrimasDoTipo],
   );
   const possuiItensSelecionados = useMemo(
     () => linhas.some((linha) => linha.materia_prima_id),
     [linhas],
+  );
+  const colunasEspecificasCriacao = useMemo(
+    () => getColunasEspecificasMaterial(tipoMaterial),
+    [tipoMaterial],
   );
 
   const opcoesMateria = useMemo(
@@ -1988,8 +2088,8 @@ function OcCriarModal({
         return {
           value: mp.id,
           label: mp.nome,
-          secondaryLabel: mp.sku,
-            searchText: `${mp.nome} ${mp.sku} ${mp.categoria} ${labelTipoMaterial(mp.tipo_material)}`,
+          secondaryLabel: formatResumoMaterialOpcao(mp),
+          searchText: `${mp.nome} ${formatResumoMaterialOpcao(mp)} ${obterAgrupadorMaterial(mp)} ${labelTipoMaterial(mp.tipo_material)}`,
           imageUrl,
         };
       }),
@@ -2003,13 +2103,13 @@ function OcCriarModal({
       })),
     [],
   );
-  const opcoesCategoriaOc = useMemo(
+  const opcoesAgrupadorOc = useMemo(
     () =>
-      categoriasDisponiveis.map((nomeCategoria) => ({
-        value: nomeCategoria,
-        label: nomeCategoria,
+      agrupadoresDisponiveis.map((nomeAgrupador) => ({
+        value: nomeAgrupador,
+        label: nomeAgrupador,
       })),
-    [categoriasDisponiveis],
+    [agrupadoresDisponiveis],
   );
   const opcoesFornecedorOc = useMemo(
     () =>
@@ -2026,7 +2126,7 @@ function OcCriarModal({
     setErro("");
     setFornecedorId("");
     setTipoMaterial("");
-    setCategoria("");
+    setAgrupador("");
     setDescontoPercentual("0");
     setObservacao("");
     setLinhas([
@@ -2084,13 +2184,13 @@ function OcCriarModal({
     }
     setErro("");
     setTipoMaterial((nextTipo as TipoMaterial) || "");
-    setCategoria("");
+    setAgrupador("");
   }
 
-  function updateCategoria(nextCategoria: string) {
-    if (nextCategoria === categoria) return;
+  function updateAgrupador(nextAgrupador: string) {
+    if (nextAgrupador === agrupador) return;
     setErro("");
-    setCategoria(nextCategoria);
+    setAgrupador(nextAgrupador);
   }
 
   function updateLinha(key: string, patch: Partial<LinhaCriarOc>) {
@@ -2225,14 +2325,18 @@ function OcCriarModal({
             className="text-xs font-semibold uppercase tracking-wide"
             style={{ color: "var(--ac-muted)" }}
           >
-            Categoria
+            {obterRotuloAgrupador(tipoMaterial)}
           </label>
           <SmartSelect
-            value={categoria}
-            onChange={updateCategoria}
+            value={agrupador}
+            onChange={updateAgrupador}
             disabled={carregando || !tipoMaterial}
-            options={opcoesCategoriaOc}
-            placeholder="Todas as categorias do tipo"
+            options={opcoesAgrupadorOc}
+            placeholder={
+              tipoMaterial
+                ? `Todos os ${obterRotuloAgrupador(tipoMaterial).toLowerCase()}s do tipo`
+                : "Selecione o tipo"
+            }
             showThumbnails={false}
           />
         </div>
@@ -2283,7 +2387,7 @@ function OcCriarModal({
             >
               Itens
               {tipoMaterial ? ` · ${labelTipoMaterial(tipoMaterial)}` : ""}
-              {categoria ? ` · ${categoria}` : ""}
+              {agrupador ? ` · ${agrupador}` : ""}
             </span>
             <Button
               type="button"
@@ -2305,6 +2409,15 @@ function OcCriarModal({
                   >
                     Matéria-prima
                   </th>
+                  {colunasEspecificasCriacao.map((coluna) => (
+                    <th
+                      key={coluna.key}
+                      className="px-2 py-2 text-left text-xs font-semibold uppercase"
+                      style={{ color: "var(--ac-muted)" }}
+                    >
+                      {coluna.label}
+                    </th>
+                  ))}
                   <th
                     className="px-2 py-2 text-right text-xs font-semibold uppercase w-[100px]"
                     style={{ color: "var(--ac-muted)" }}
@@ -2333,14 +2446,26 @@ function OcCriarModal({
                         loading={carregando}
                         emptyMessage={
                           tipoMaterial
-                            ? categoria
-                              ? `Nenhuma matéria-prima encontrada para ${categoria}`
+                            ? agrupador
+                              ? `Nenhuma matéria-prima encontrada para ${agrupador}`
                               : `Nenhuma matéria-prima encontrada para ${labelTipoMaterial(tipoMaterial)}`
                             : "Escolha o tipo para carregar as matérias-primas"
                         }
                         className="w-full"
                       />
                     </td>
+                    {colunasEspecificasCriacao.map((coluna) => {
+                      const mpSelecionada = mpById.get(l.materia_prima_id) ?? null;
+                      return (
+                        <td
+                          key={coluna.key}
+                          className="px-2 py-2 align-top text-xs"
+                          style={{ color: "var(--ac-muted)" }}
+                        >
+                          <div className="px-2 py-1.5">{coluna.value(mpSelecionada)}</div>
+                        </td>
+                      );
+                    })}
                     <td className="px-2 py-2 align-top">
                       <input
                         type="text"

@@ -526,17 +526,6 @@ export function FacaModal({
                         <span className="font-mono text-xs" style={{ color: "var(--ac-muted)" }}>
                           {mp?.codigo ?? "Sem codigo"}
                         </span>
-                        {mp?.categoria ? (
-                          <span
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px]"
-                            style={{
-                              color: "var(--ac-accent)",
-                              background: "color-mix(in srgb, var(--ac-accent) 12%, transparent)",
-                            }}
-                          >
-                            {mp.categoria}
-                          </span>
-                        ) : null}
                       </div>
                       <div className="text-sm font-medium mt-1" style={{ color: "var(--ac-text)" }}>
                         {mp?.nome ?? "Matéria-prima não encontrada"}

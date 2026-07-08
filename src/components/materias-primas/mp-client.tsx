@@ -25,7 +25,7 @@ type Props = {
 };
 
 type ViewMode = "categorias" | "todos";
-type SortField = "codigo" | "nome" | "categoria" | "fornecedor" | "preco_custo" | "status";
+type SortField = "codigo" | "nome" | "fornecedor" | "preco_custo" | "status";
 type SortDirection = "asc" | "desc";
 type SortAlign = "left" | "center" | "right";
 type GrupoResumo = { nome: string; quantidade: number };
@@ -47,8 +47,6 @@ function compareMateriaPrima(a: MateriaPrima, b: MateriaPrima, field: SortField)
       return compareText(a.codigo, b.codigo);
     case "nome":
       return compareText(a.nome, b.nome);
-    case "categoria":
-      return compareText(a.categoria, b.categoria);
     case "fornecedor":
       return compareText(a.fornecedor?.nome ?? "", b.fornecedor?.nome ?? "");
     case "preco_custo":
@@ -73,6 +71,8 @@ function getTipoSingular(tipoMaterial: TipoMaterial): string {
       return "Cabo";
     case "bainha":
       return "Bainha";
+    case "latao":
+      return "Latão";
     default:
       return "Material";
   }
@@ -86,6 +86,8 @@ function getTipoDescricao(tipoMaterial: TipoMaterial): string {
       return "Materiais de cabo com tipo, cor e acabamento.";
     case "bainha":
       return "Materiais usados em bainhas, com modelo e botão.";
+    case "latao":
+      return "Itens de latão usando o fluxo genérico de materiais.";
     default:
       return "Materiais gerais sem bloco específico.";
   }
@@ -117,9 +119,9 @@ function getAgrupamentoMeta(tipoMaterial: TipoMaterial): {
       };
     default:
       return {
-        labelSingular: "Categoria",
-        labelPlural: "Categorias",
-        fallback: "Sem categoria",
+        labelSingular: "Item",
+        labelPlural: "Lista",
+        fallback: "Outros materiais",
       };
   }
 }
@@ -134,7 +136,7 @@ function getGrupoMateriaPrima(mp: MateriaPrima): string {
   if (mp.tipo_material === "bainha") {
     return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
   }
-  return mp.categoria.trim() || "Sem categoria";
+  return "Outros materiais";
 }
 
 function formatDetalhesTipo(mp: MateriaPrima): string {
@@ -150,6 +152,61 @@ function formatDetalhesTipo(mp: MateriaPrima): string {
     );
   }
   return "—";
+}
+
+function getColunasEspecificas(tipoMaterial: TipoMaterial): Array<{
+  key: string;
+  label: string;
+  value: (mp: MateriaPrima) => string;
+}> {
+  switch (tipoMaterial) {
+    case "lamina":
+      return [
+        {
+          key: "aco",
+          label: "Aço",
+          value: (mp) => mp.lamina?.aco?.trim() || "—",
+        },
+        {
+          key: "carimbo",
+          label: "Carimbo",
+          value: (mp) => mp.lamina?.carimbo?.trim() || "—",
+        },
+      ];
+    case "cabo":
+      return [
+        {
+          key: "tipo",
+          label: "Tipo",
+          value: (mp) => mp.cabo?.tipo?.trim() || "—",
+        },
+        {
+          key: "cor",
+          label: "Cor",
+          value: (mp) => mp.cabo?.cor?.trim() || "—",
+        },
+      ];
+    case "bainha":
+      return [
+        {
+          key: "polegadas",
+          label: "Polegadas",
+          value: (mp) => mp.bainha?.polegadas?.trim() || "—",
+        },
+        {
+          key: "modelo",
+          label: "Modelo",
+          value: (mp) => mp.bainha?.modelo?.trim() || "—",
+        },
+        {
+          key: "botao",
+          label: "Botão",
+          value: (mp) => mp.bainha?.botao?.trim() || "—",
+        },
+      ];
+    default:
+      return [];
+  }
 }
 
 function SortableHeader({
@@ -199,6 +256,7 @@ function MPTabela({
   itens,
   busca,
   emptyMessage,
+  tipoMaterialAtivo,
   perm,
   fotoUrlByMPId,
   sortField,
@@ -212,6 +270,7 @@ function MPTabela({
   itens: MateriaPrima[];
   busca: string;
   emptyMessage: string;
+  tipoMaterialAtivo: TipoMaterial;
   perm: Perm;
   fotoUrlByMPId: Map<string, string>;
   sortField: SortField;
@@ -222,6 +281,9 @@ function MPTabela({
   onRequestDelete: (mp: MateriaPrima) => void;
   onOpenPhoto: (mp: MateriaPrima, thumbFallback: string) => void;
 }) {
+  const colunasEspecificas = getColunasEspecificas(tipoMaterialAtivo);
+  const totalColunas = 9 + colunasEspecificas.length;
+
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--ac-border)" }}>
       <table className="w-full text-sm">
@@ -253,13 +315,15 @@ function MPTabela({
             >
               Detalhes
             </th>
-            <SortableHeader
-              label="Categoria"
-              field="categoria"
-              sortField={sortField}
-              sortDirection={sortDirection}
-              onToggle={onToggleSort}
-            />
+            {colunasEspecificas.map((coluna) => (
+              <th
+                key={coluna.key}
+                className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wide"
+                style={{ color: "var(--ac-muted)" }}
+              >
+                {coluna.label}
+              </th>
+            ))}
             <SortableHeader
               label="Fornecedor"
               field="fornecedor"
@@ -296,7 +360,7 @@ function MPTabela({
           {itens.length === 0 && (
             <tr>
               <td
-                colSpan={10}
+                colSpan={totalColunas}
                 className="text-center py-12 text-sm"
                 style={{ color: "var(--ac-muted)" }}
               >
@@ -391,9 +455,15 @@ function MPTabela({
                 <td className="px-4 py-3 text-xs" style={{ color: "var(--ac-muted)" }}>
                   {formatDetalhesTipo(mp)}
                 </td>
-                <td className="px-4 py-3" style={{ color: "var(--ac-muted)" }}>
-                  {mp.categoria}
-                </td>
+                {colunasEspecificas.map((coluna) => (
+                  <td
+                    key={coluna.key}
+                    className="px-4 py-3 text-xs"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    {coluna.value(mp)}
+                  </td>
+                ))}
                 <td className="px-4 py-3" style={{ color: "var(--ac-muted)" }}>
                   {mp.fornecedor?.nome ?? "—"}
                 </td>
@@ -513,7 +583,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [fotoLightboxAlt, setFotoLightboxAlt] = useState<string>("");
   const [selectedTipoMaterial, setSelectedTipoMaterial] = useState<TipoMaterial>(() => {
     return (
-      (["lamina", "cabo", "bainha", "outro"] as const).find((tipo) =>
+      (["lamina", "cabo", "bainha", "latao", "outro"] as const).find((tipo) =>
         initialMP.some((mp) => mp.tipo_material === tipo),
       ) ?? "lamina"
     );
@@ -524,7 +594,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const tipos = useMemo<TipoResumo[]>(() => {
-    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "outro"];
+    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao", "outro"];
     const counts = new Map<TipoMaterial, number>();
     for (const tipo of ordem) counts.set(tipo, 0);
     for (const mp of materiasPrimas) {
@@ -545,6 +615,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   );
 
   const agrupamentoMeta = useMemo(() => getAgrupamentoMeta(tipoMaterialAtivo), [tipoMaterialAtivo]);
+  const agrupaPorContexto = tipoMaterialAtivo !== "outro" && tipoMaterialAtivo !== "latao";
 
   const grupos = useMemo(() => {
     const counts = new Map<string, number>();
@@ -574,15 +645,18 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   }, [materiaisDoTipo]);
 
   const activeSelectedGroup =
-    selectedGroup && materiaisDoTipo.some((mp) => getGrupoMateriaPrima(mp) === selectedGroup)
+    agrupaPorContexto &&
+    selectedGroup &&
+    materiaisDoTipo.some((mp) => getGrupoMateriaPrima(mp) === selectedGroup)
       ? selectedGroup
       : null;
 
-  const buscaHabilitada = viewMode === "todos" || activeSelectedGroup !== null;
+  const buscaHabilitada =
+    !agrupaPorContexto || viewMode === "todos" || activeSelectedGroup !== null;
 
   const itensVisiveis = useMemo(() => {
     const base =
-      viewMode === "categorias" && activeSelectedGroup
+      agrupaPorContexto && viewMode === "categorias" && activeSelectedGroup
         ? materiaisDoTipo.filter((mp) => getGrupoMateriaPrima(mp) === activeSelectedGroup)
         : materiaisDoTipo;
 
@@ -594,11 +668,10 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
         mp.nome.toLowerCase().includes(q) ||
         mp.codigo.toLowerCase().includes(q) ||
         mp.sku.toLowerCase().includes(q) ||
-        mp.categoria.toLowerCase().includes(q) ||
         mp.fornecedor?.nome?.toLowerCase().includes(q) ||
         formatDetalhesTipo(mp).toLowerCase().includes(q),
     );
-  }, [materiaisDoTipo, busca, activeSelectedGroup, viewMode]);
+  }, [materiaisDoTipo, busca, activeSelectedGroup, viewMode, agrupaPorContexto]);
 
   const itensOrdenados = useMemo(() => {
     const sorted = [...itensVisiveis].sort((a, b) => {
@@ -665,7 +738,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
 
   const selecionarTipoMaterial = useCallback((tipoMaterial: TipoMaterial) => {
     setSelectedTipoMaterial(tipoMaterial);
-    setViewMode("categorias");
+    setViewMode(tipoMaterial === "outro" || tipoMaterial === "latao" ? "todos" : "categorias");
     setSelectedGroup(null);
     setBusca("");
     setEditando(null);
@@ -794,9 +867,6 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
                     {tipo.quantidade}
                   </span>
                 </div>
-                <p className="mt-4 text-sm" style={{ color: "var(--ac-muted)" }}>
-                  {getTipoDescricao(tipo.tipo)}
-                </p>
               </button>
             );
           })}
@@ -819,8 +889,8 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
               type="text"
               placeholder={
                 buscaHabilitada
-                  ? `Buscar em ${labelTipoMaterial(tipoMaterialAtivo).toLowerCase()} por nome, código, SKU, categoria ou fornecedor...`
-                  : `Selecione ${agrupamentoMeta.labelSingular === "Categoria" ? "uma" : "um"} ${agrupamentoMeta.labelSingular.toLowerCase()} ou use Todos para buscar...`
+                  ? `Buscar em ${labelTipoMaterial(tipoMaterialAtivo).toLowerCase()} por nome, código, SKU ou fornecedor...`
+                  : `Selecione um ${agrupamentoMeta.labelSingular.toLowerCase()} ou use Todos para buscar...`
               }
               value={busca}
               disabled={!buscaHabilitada}
@@ -845,32 +915,34 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
             />
           </div>
 
-          <div
-            className="inline-flex rounded-xl p-1"
-            style={{ background: "var(--ac-bg)", border: "1px solid var(--ac-border)" }}
-          >
-            {(["categorias", "todos"] as const).map((mode) => {
-              const active = viewMode === mode;
-              const label = mode === "categorias" ? agrupamentoMeta.labelPlural : "Todos";
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => selecionarModo(mode)}
-                  className="px-4 py-2 cursor-pointer rounded-lg text-sm font-medium transition-colors"
-                  style={{
-                    background: active ? "var(--ac-card)" : "transparent",
-                    color: active ? "var(--ac-text)" : "var(--ac-muted)",
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {agrupaPorContexto ? (
+            <div
+              className="inline-flex rounded-xl p-1"
+              style={{ background: "var(--ac-bg)", border: "1px solid var(--ac-border)" }}
+            >
+              {(["categorias", "todos"] as const).map((mode) => {
+                const active = viewMode === mode;
+                const label = mode === "categorias" ? agrupamentoMeta.labelPlural : "Todos";
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => selecionarModo(mode)}
+                    className="px-4 py-2 cursor-pointer rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      background: active ? "var(--ac-card)" : "transparent",
+                      color: active ? "var(--ac-text)" : "var(--ac-muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
-        {viewMode === "categorias" && activeSelectedGroup && (
+        {agrupaPorContexto && viewMode === "categorias" && activeSelectedGroup && (
           <div
             className="flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             style={{ background: "var(--ac-bg)", border: "1px solid var(--ac-border)" }}
@@ -905,7 +977,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
       </div>
 
       <div className="px-8 pb-8">
-        {viewMode === "categorias" && !activeSelectedGroup ? (
+        {agrupaPorContexto && viewMode === "categorias" && !activeSelectedGroup ? (
           grupos.length === 0 ? (
             <div
               className="rounded-xl px-6 py-12 text-center text-sm"
@@ -974,6 +1046,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
             itens={itensOrdenados}
             busca={busca}
             emptyMessage={emptyMessage}
+            tipoMaterialAtivo={tipoMaterialAtivo}
             perm={perm}
             fotoUrlByMPId={fotoUrlByMPId}
             sortField={sortField}
@@ -990,13 +1063,12 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
         )}
       </div>
 
-      {/* Modal CRUD — fornecedores/categorias carregam sob demanda */}
+      {/* Modal CRUD — referências carregam sob demanda */}
       <MPModal
         key={`${tipoModalAtual}-${editando?.id ?? (modalAberto ? "novo" : "fechado")}`}
         open={modalAberto}
         onClose={() => setModalAberto(false)}
         fornecedores={modalDataAtual?.fornecedores ?? []}
-        categoriasMateriaPrima={modalDataAtual?.categoriasMateriaPrima ?? []}
         opcoesMateriais={
           modalDataAtual?.opcoesMateriais ?? {
             aco: [],

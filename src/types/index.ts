@@ -1,7 +1,7 @@
 /** CNPJ (padrão em PJ) ou CPF — armazenado só com dígitos em `documento`. */
 export type TipoDocumento = "cnpj" | "cpf";
 
-export type TipoMaterial = "lamina" | "cabo" | "bainha" | "outro";
+export type TipoMaterial = "lamina" | "cabo" | "bainha" | "latao" | "outro";
 
 export type TipoOpcaoMaterial = "aco" | "cabo" | "botao" | "carimbo" | "bainha";
 
@@ -9,6 +9,7 @@ export const TIPOS_MATERIAL: { value: TipoMaterial; label: string }[] = [
   { value: "lamina", label: "Lâminas" },
   { value: "cabo", label: "Cabos" },
   { value: "bainha", label: "Bainhas" },
+  { value: "latao", label: "Latão" },
   { value: "outro", label: "Outros" },
 ];
 
@@ -74,7 +75,6 @@ export type MateriaPrima = {
   codigo: string;
   sku: string;
   nome: string;
-  categoria: string;
   tipo_material: TipoMaterial;
   fornecedor_id: string | null;
   foto_url: string | null;
@@ -487,7 +487,10 @@ export type OrdemCompraItem = {
   quantidade_vendida: number;
   quantidade_adicional: number;
   preco_unitario: number | null;
-  materia_prima?: Pick<MateriaPrima, "id" | "codigo" | "nome" | "categoria" | "tipo_material">;
+  materia_prima?: Pick<
+    MateriaPrima,
+    "id" | "codigo" | "nome" | "tipo_material" | "sku" | "lamina" | "cabo" | "bainha"
+  >;
 };
 
 export type OrdemCompra = {
@@ -557,7 +560,6 @@ export type FilaReposicaoItem = {
   materia_prima_id: string;
   mp_nome: string;
   mp_codigo: string;
-  categoria: string;
   tipo_material: TipoMaterial;
   mp_preco_custo: number;
   fornecedor_id: string | null;
@@ -601,13 +603,6 @@ export type CategoriaFacaDB = {
   cor_texto: string;
   cor_fundo: string;
   cor_borda: string;
-  ordem: number;
-  created_at: string;
-};
-
-export type CategoriaMateriaPrimaDB = {
-  id: string;
-  nome: string;
   ordem: number;
   created_at: string;
 };

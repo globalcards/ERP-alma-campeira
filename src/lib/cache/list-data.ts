@@ -5,7 +5,6 @@ import { mapCliente } from "@/lib/prisma-auth-mappers";
 import type {
   MateriaPrima,
   Fornecedor,
-  CategoriaMateriaPrimaDB,
   OpcaoMaterial,
   Faca,
   CategoriaFacaDB,
@@ -91,7 +90,6 @@ function mapMateriaPrima(row: {
   codigo: string;
   sku: string;
   nome: string;
-  categoria: string;
   tipoMaterial: TipoMaterial;
   fornecedorId: string | null;
   fotoUrl: string | null;
@@ -109,7 +107,6 @@ function mapMateriaPrima(row: {
     codigo: row.codigo,
     sku: row.sku,
     nome: row.nome,
-    categoria: row.categoria,
     tipo_material: row.tipoMaterial,
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
@@ -191,27 +188,6 @@ function fornecedoresSelectCache(userId: string) {
   );
 }
 
-const CATEGORIAS_PADRAO: CategoriaMateriaPrimaDB[] = [
-  { id: "fallback-bainha", nome: "Bainha", ordem: 1, created_at: "" },
-  { id: "fallback-botao", nome: "Botão", ordem: 2, created_at: "" },
-  { id: "fallback-lamina", nome: "Lâmina", ordem: 3, created_at: "" },
-  { id: "fallback-cabo", nome: "Cabo", ordem: 4, created_at: "" },
-];
-
-function mapCategoriaMateriaPrima(row: {
-  id: string;
-  nome: string;
-  ordem: number;
-  createdAt: Date;
-}): CategoriaMateriaPrimaDB {
-  return {
-    id: row.id,
-    nome: row.nome,
-    ordem: row.ordem,
-    created_at: row.createdAt.toISOString(),
-  };
-}
-
 function mapOpcaoMaterial(row: {
   id: string;
   tipo: TipoOpcaoMaterial;
@@ -250,26 +226,6 @@ function mapCategoriaFaca(row: {
   };
 }
 
-function categoriasMPCache(userId: string) {
-  return unstable_cache(
-    async (): Promise<CategoriaMateriaPrimaDB[]> => {
-      const categorias = await prisma.categoriaMateriaPrima.findMany({
-        select: {
-          id: true,
-          nome: true,
-          ordem: true,
-          createdAt: true,
-        },
-        orderBy: { ordem: "asc" },
-      });
-      const mapped = categorias.map(mapCategoriaMateriaPrima);
-      return mapped.length > 0 ? mapped : CATEGORIAS_PADRAO;
-    },
-    ["list-categorias-mp", userId],
-    { revalidate: LIST_REVALIDATE, tags: [`list-categorias-mp-${userId}`] },
-  );
-}
-
 function opcoesMaterialCache(userId: string, tipo: TipoOpcaoMaterial, incluirInativos = false) {
   return unstable_cache(
     async (): Promise<OpcaoMaterial[]> => {
@@ -301,12 +257,6 @@ export function fetchFornecedoresSelect(
   userId: string,
 ): Promise<Pick<Fornecedor, "id" | "nome">[]> {
   return fornecedoresSelectCache(userId)();
-}
-
-export function fetchCategoriasMateriaPrimaList(
-  userId: string,
-): Promise<CategoriaMateriaPrimaDB[]> {
-  return categoriasMPCache(userId)();
 }
 
 export function fetchOpcoesMaterialList(
@@ -530,7 +480,16 @@ function ordensCompraCache(userId: string) {
           itens: {
             include: {
               materiaPrima: {
-                select: { id: true, codigo: true, nome: true, categoria: true, tipoMaterial: true },
+                select: {
+                  id: true,
+                  codigo: true,
+                  nome: true,
+                  sku: true,
+                  tipoMaterial: true,
+                  lamina: { select: { aco: true, carimbo: true } },
+                  cabo: { select: { tipo: true, cor: true } },
+                  bainha: { select: { polegadas: true, modelo: true, botao: true } },
+                },
               },
             },
           },
@@ -587,8 +546,11 @@ function ordensCompraCache(userId: string) {
                   id: item.materiaPrima.id,
                   codigo: item.materiaPrima.codigo,
                   nome: item.materiaPrima.nome,
-                  categoria: item.materiaPrima.categoria,
-                    tipo_material: item.materiaPrima.tipoMaterial,
+                  sku: item.materiaPrima.sku,
+                  tipo_material: item.materiaPrima.tipoMaterial,
+                  lamina: item.materiaPrima.lamina,
+                  cabo: item.materiaPrima.cabo,
+                  bainha: item.materiaPrima.bainha,
                 }
               : undefined,
           })),

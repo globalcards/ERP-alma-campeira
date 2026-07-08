@@ -4,7 +4,6 @@ import { Prisma } from "@prisma/client";
 import { revalidateTag } from "next/cache";
 import { assertPermissao, requireAuthenticatedUserId } from "@/lib/auth";
 import {
-  fetchCategoriasMateriaPrimaList,
   fetchFornecedoresSelect,
   fetchMatériasPrimasList,
   fetchOpcoesMaterialList,
@@ -15,7 +14,6 @@ import type {
   MovimentacaoEstoque,
   Faca,
   Fornecedor,
-  CategoriaMateriaPrimaDB,
   TipoMaterial,
   MateriaPrimaLamina,
   MateriaPrimaCabo,
@@ -26,12 +24,15 @@ import type {
 import { gerarCodigoForte } from "@/lib/utils/codigo";
 import { withTiming } from "@/lib/perf/timing";
 import { isTipoMaterial, normalizarTipoMaterial } from "@/lib/materiais/tipos";
+import {
+  buildMateriaPrimaUniqueKey,
+  getMateriaPrimaUniqueErrorMessage,
+} from "@/lib/materiais/unicidade";
 
 async function revalidateMPLists() {
   const userId = await requireAuthenticatedUserId();
   revalidateTag(`list-materias-primas-${userId}`, "max");
   revalidateTag(`list-fornecedores-select-${userId}`, "max");
-  revalidateTag(`list-categorias-mp-${userId}`, "max");
   // Custo das facas depende de preco_custo das MPs → invalida lista de facas também.
   revalidateTag(`list-facas-${userId}`, "max");
 }
@@ -99,16 +100,59 @@ function throwFriendlyUniqueError(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     const targets = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
     if (
-      (targets.includes("categoria") && targets.includes("sku")) ||
-      targets.includes("materias_primas_categoria_sku_key")
+      (targets.includes("tipo_material") && targets.includes("sku")) ||
+      (targets.includes("tipoMaterial") && targets.includes("sku")) ||
+      targets.includes("materias_primas_tipo_material_sku_key")
     ) {
-      throw new Error("Já existe uma matéria-prima com este SKU nesta categoria.");
+      throw new Error("Já existe uma matéria-prima com este SKU neste tipo de material.");
     }
     if (targets.includes("codigo")) {
       throw new Error("Já existe uma matéria-prima com este código.");
     }
   }
   throw error;
+}
+
+async function assertMateriaPrimaUnique(
+  tx: Prisma.TransactionClient,
+  input: NormalizedMPInput,
+  currentId?: string,
+): Promise<void> {
+  if (input.tipo_material === "lamina") {
+    const existing = await tx.materiaPrima.findFirst({
+      where: {
+        id: currentId ? { not: currentId } : undefined,
+        tipoMaterial: "lamina",
+        sku: input.sku,
+        lamina: {
+          is: {
+            aco: input.lamina?.aco ?? null,
+            carimbo: input.lamina?.carimbo ?? null,
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new Error(getMateriaPrimaUniqueErrorMessage(input));
+    }
+
+    return;
+  }
+
+  const existing = await tx.materiaPrima.findFirst({
+    where: {
+      id: currentId ? { not: currentId } : undefined,
+      tipoMaterial: input.tipo_material,
+      sku: input.sku,
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new Error(getMateriaPrimaUniqueErrorMessage(input));
+  }
 }
 
 function mapFornecedorDetalhe(
@@ -161,7 +205,6 @@ function mapMateriaPrimaDetalhe(row: {
   codigo: string;
   sku: string;
   nome: string;
-  categoria: string;
   tipoMaterial: TipoMaterial;
   fornecedorId: string | null;
   fotoUrl: string | null;
@@ -198,7 +241,6 @@ function mapMateriaPrimaDetalhe(row: {
     codigo: row.codigo,
     sku: row.sku,
     nome: row.nome,
-    categoria: row.categoria,
     tipo_material: row.tipoMaterial,
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
@@ -248,7 +290,6 @@ function mapMovimentacaoDetalhe(
 type MPInput = {
   sku: string;
   nome: string;
-  categoria: string;
   tipo_material?: TipoMaterial;
   fornecedor_id: string | null;
   preco_custo: number;
@@ -262,7 +303,6 @@ type MPInput = {
 type NormalizedMPInput = {
   sku: string;
   nome: string;
-  categoria: string;
   tipo_material: TipoMaterial;
   fornecedor_id: string | null;
   preco_custo: number;
@@ -277,7 +317,6 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   const prefixo = linha ? `Linha ${linha}: ` : "";
   const sku = input.sku.trim();
   const nome = input.nome.trim();
-  const categoria = input.categoria.trim();
   const tipoRaw = typeof input.tipo_material === "string" ? input.tipo_material : "";
   if (!isTipoMaterial(tipoRaw)) {
     throw new Error(`${prefixo}tipo de material é obrigatório.`);
@@ -289,7 +328,6 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
 
   if (!sku) throw new Error(`${prefixo}sku é obrigatório.`);
   if (!nome) throw new Error(`${prefixo}nome é obrigatório.`);
-  if (!categoria) throw new Error(`${prefixo}categoria é obrigatória.`);
   if (!Number.isFinite(preco_custo)) throw new Error(`${prefixo}preço de custo inválido.`);
   if (!Number.isFinite(estoque_atual)) throw new Error(`${prefixo}estoque atual inválido.`);
   if (!Number.isFinite(estoque_minimo)) throw new Error(`${prefixo}estoque mínimo inválido.`);
@@ -297,7 +335,6 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   return {
     sku,
     nome,
-    categoria,
     tipo_material,
     fornecedor_id: input.fornecedor_id?.trim() || null,
     preco_custo,
@@ -451,12 +488,12 @@ export async function criarMateriaPrima(input: MPInput) {
 
   try {
     await prisma.$transaction(async (tx) => {
+      await assertMateriaPrimaUnique(tx, normalized);
       const created = await tx.materiaPrima.create({
         data: {
           codigo,
           sku: normalized.sku,
           nome: normalized.nome,
-          categoria: normalized.categoria,
           tipoMaterial: normalized.tipo_material,
           fornecedorId: normalized.fornecedor_id,
           precoCusto: decimal(normalized.preco_custo),
@@ -481,11 +518,11 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
   }
 
   const normalizedInputs = inputs.map((input, index) => normalizeMPInput(input, index + 1));
-  const skuCategoriaKeys = normalizedInputs.map(
-    (input) => `${input.categoria.trim().toLowerCase()}::${input.sku.trim().toLowerCase()}`,
-  );
-  if (new Set(skuCategoriaKeys).size !== skuCategoriaKeys.length) {
-    throw new Error("Existem SKUs duplicados na mesma categoria na planilha de criação em massa.");
+  const uniqueKeys = normalizedInputs.map((input) => buildMateriaPrimaUniqueKey(input));
+  if (new Set(uniqueKeys).size !== uniqueKeys.length) {
+    throw new Error(
+      "Existem linhas duplicadas na planilha para a mesma regra de unicidade do material.",
+    );
   }
   const fornecedorIds = [
     ...new Set(
@@ -526,12 +563,12 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
   try {
     await prisma.$transaction(async (tx) => {
       for (const [index, input] of normalizedInputs.entries()) {
+        await assertMateriaPrimaUnique(tx, input);
         const created = await tx.materiaPrima.create({
           data: {
             codigo: codigos[index],
             sku: input.sku,
             nome: input.nome,
-            categoria: input.categoria,
             tipoMaterial: input.tipo_material,
             fornecedorId: input.fornecedor_id,
             precoCusto: decimal(input.preco_custo),
@@ -557,12 +594,12 @@ export async function atualizarMateriaPrima(id: string, input: MPInput) {
   await validarOpcoesConfiguraveis(normalized);
   try {
     await prisma.$transaction(async (tx) => {
+      await assertMateriaPrimaUnique(tx, normalized, id);
       await tx.materiaPrima.update({
         where: { id },
         data: {
           sku: normalized.sku,
           nome: normalized.nome,
-          categoria: normalized.categoria,
           tipoMaterial: normalized.tipo_material,
           fornecedorId: normalized.fornecedor_id,
           precoCusto: decimal(normalized.preco_custo),
@@ -708,7 +745,6 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
 
 export type MPEditModalData = {
   fornecedores: Fornecedor[];
-  categoriasMateriaPrima: CategoriaMateriaPrimaDB[];
   opcoesMateriais: OpcoesMateriaisPorTipo;
 };
 
@@ -716,30 +752,21 @@ export async function getMPEditModalData(tipoMaterial?: TipoMaterial): Promise<M
   return withTiming("getMPEditModalData", async () => {
     const userId = await requireAuthenticatedUserId();
     await assertPermissao("materias_primas", "ver");
-    const [
-      fornecedores,
-      categoriasMateriaPrima,
-      opcoesAco,
-      opcoesCabo,
-      opcoesBotao,
-      opcoesCarimbo,
-      opcoesBainha,
-    ] = await Promise.all([
-      fetchFornecedoresSelect(userId),
-      fetchCategoriasMateriaPrimaList(userId),
-      fetchOpcoesMaterialList(userId, "aco", false),
-      fetchOpcoesMaterialList(userId, "cabo", false),
-      fetchOpcoesMaterialList(userId, "botao", false),
-      fetchOpcoesMaterialList(userId, "carimbo", false),
-      fetchOpcoesMaterialList(userId, "bainha", false),
-    ]);
+    const [fornecedores, opcoesAco, opcoesCabo, opcoesBotao, opcoesCarimbo, opcoesBainha] =
+      await Promise.all([
+        fetchFornecedoresSelect(userId),
+        fetchOpcoesMaterialList(userId, "aco", false),
+        fetchOpcoesMaterialList(userId, "cabo", false),
+        fetchOpcoesMaterialList(userId, "botao", false),
+        fetchOpcoesMaterialList(userId, "carimbo", false),
+        fetchOpcoesMaterialList(userId, "bainha", false),
+      ]);
     return {
       fornecedores: tipoMaterial
         ? (fornecedores as Fornecedor[]).filter((fornecedor) =>
             fornecedorAtendeTipo(fornecedor, tipoMaterial),
           )
         : (fornecedores as Fornecedor[]),
-      categoriasMateriaPrima,
       opcoesMateriais: {
         aco: opcoesAco,
         cabo: opcoesCabo,

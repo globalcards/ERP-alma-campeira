@@ -25,6 +25,26 @@ function compareText(a: string, b: string): number {
   return a.localeCompare(b, "pt-BR", { sensitivity: "base", numeric: true });
 }
 
+function getGrupoNome(mp: MateriaPrima): string {
+  if (mp.tipo_material === "lamina") {
+    return mp.lamina?.aco?.trim() || "Sem aço configurado";
+  }
+  if (mp.tipo_material === "cabo") {
+    return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  }
+  if (mp.tipo_material === "bainha") {
+    return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
+  }
+  return "Outros materiais";
+}
+
+function getGrupoRotulo(tipoMaterial: TipoMaterial): string {
+  if (tipoMaterial === "lamina") return "Aço";
+  if (tipoMaterial === "cabo") return "Tipo";
+  if (tipoMaterial === "bainha") return "Modelo";
+  return "Lista";
+}
+
 export function MPSelectorModal({
   onClose,
   materiasPrimas,
@@ -51,8 +71,8 @@ export function MPSelectorModal({
   const materiasPrimasOrdenadas = useMemo(
     () =>
       [...materiasPrimas].sort((a, b) => {
-        const categoria = compareText(a.categoria, b.categoria);
-        if (categoria !== 0) return categoria;
+        const grupo = compareText(getGrupoNome(a), getGrupoNome(b));
+        if (grupo !== 0) return grupo;
         const codigo = compareText(a.codigo, b.codigo);
         if (codigo !== 0) return codigo;
         return compareText(a.nome, b.nome);
@@ -64,7 +84,7 @@ export function MPSelectorModal({
     type GrupoResumo = {
       key: string;
       tipo: TipoMaterial;
-      categoria: string;
+      grupo: string;
       titulo: string;
       quantidade: number;
       novasSelecionadas: number;
@@ -74,13 +94,14 @@ export function MPSelectorModal({
     const counts = new Map<string, GrupoResumo>();
 
     for (const mp of materiasPrimasOrdenadas) {
-      const categoria = mp.categoria.trim() || "Sem categoria";
-      const key = `${mp.tipo_material}::${categoria}`;
+      const grupo = getGrupoNome(mp);
+      const rotuloGrupo = getGrupoRotulo(mp.tipo_material);
+      const key = `${mp.tipo_material}::${grupo}`;
       const atual = counts.get(key) ?? {
         key,
         tipo: mp.tipo_material,
-        categoria,
-        titulo: `${labelTipoMaterial(mp.tipo_material)} · ${categoria}`,
+        grupo,
+        titulo: `${labelTipoMaterial(mp.tipo_material)} · ${rotuloGrupo}: ${grupo}`,
         quantidade: 0,
         novasSelecionadas: 0,
         jaAdicionadas: 0,
@@ -104,7 +125,7 @@ export function MPSelectorModal({
     const itens = materiasPrimasOrdenadas.filter(
       (mp) =>
         mp.tipo_material === grupoAtualResumo.tipo &&
-        (mp.categoria.trim() || "Sem categoria") === grupoAtualResumo.categoria,
+        getGrupoNome(mp) === grupoAtualResumo.grupo,
     );
     const sorted = [...itens].sort((a, b) => {
       let primary = 0;

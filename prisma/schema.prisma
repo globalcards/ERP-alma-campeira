@@ -23,6 +23,7 @@ enum TipoMaterial {
   lamina
   cabo
   bainha
+  latao
   outro
 }
 
@@ -295,7 +296,6 @@ model MateriaPrima {
   codigo               String                @unique
   sku                  String
   nome                 String
-  categoria            String                @default("")
   tipoMaterial         TipoMaterial          @default(outro) @map("tipo_material")
   fornecedorId         String?               @map("fornecedor_id") @db.Uuid
   fotoUrl              String?               @map("foto_url")
@@ -312,8 +312,8 @@ model MateriaPrima {
   cabo                 MaterialCabo?
   bainha               MaterialBainha?
 
-  @@unique([categoria, sku], map: "materias_primas_categoria_sku_key")
   @@index([tipoMaterial], map: "idx_materias_primas_tipo_material")
+  @@index([tipoMaterial, sku], map: "idx_materias_primas_tipo_material_sku")
   @@map("materias_primas")
 }
 
@@ -533,15 +533,6 @@ model CategoriaFaca {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("categorias_faca")
-}
-
-model CategoriaMateriaPrima {
-  id        String   @id @default(uuid()) @db.Uuid
-  nome      String
-  ordem     Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@map("categorias_materia_prima")
 }
 
 model OpcaoMaterial {

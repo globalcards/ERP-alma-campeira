@@ -6,7 +6,8 @@ import { assertPermissao, requireAuthenticatedUserId } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createLocalStorage } from "@/lib/storage";
 import { gerarCodigoForte } from "@/lib/utils/codigo";
-import { obterTipoMaterialPadrao } from "@/lib/materiais/tipos";
+import { normalizarTipoMaterial } from "@/lib/materiais/tipos";
+import { getMateriaPrimaUniqueErrorMessage } from "@/lib/materiais/unicidade";
 import type { TipoMaterial, TipoOpcaoMaterial } from "@/types";
 
 const FOTO_BUCKET_MP = "materias-primas-fotos";
@@ -15,7 +16,6 @@ async function revalidateMPLists() {
   const userId = await requireAuthenticatedUserId();
   revalidateTag(`list-materias-primas-${userId}`, "max");
   revalidateTag(`list-fornecedores-select-${userId}`, "max");
-  revalidateTag(`list-categorias-mp-${userId}`, "max");
   revalidateTag(`list-facas-${userId}`, "max");
 }
 
@@ -168,10 +168,11 @@ function throwFriendlyUniqueError(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     const targets = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
     if (
-      (targets.includes("categoria") && targets.includes("sku")) ||
-      targets.includes("materias_primas_categoria_sku_key")
+      (targets.includes("tipo_material") && targets.includes("sku")) ||
+      (targets.includes("tipoMaterial") && targets.includes("sku")) ||
+      targets.includes("materias_primas_tipo_material_sku_key")
     ) {
-      throw new Error("Já existe uma matéria-prima com este SKU nesta categoria.");
+      throw new Error("Já existe uma matéria-prima com este SKU neste tipo de material.");
     }
     if (targets.includes("codigo")) {
       throw new Error("Já existe uma matéria-prima com este código.");
@@ -180,15 +181,68 @@ function throwFriendlyUniqueError(error: unknown): never {
   throw error;
 }
 
+async function assertMateriaPrimaUniqueFromFormData(
+  tx: Prisma.TransactionClient,
+  formData: FormData,
+  tipoMaterial: TipoMaterial,
+  sku: string,
+  currentId?: string,
+): Promise<void> {
+  if (tipoMaterial === "lamina") {
+    const aco = normalizeOptionalText(formData.get("lamina_aco"));
+    const carimbo = normalizeOptionalText(formData.get("lamina_carimbo"));
+    const existing = await tx.materiaPrima.findFirst({
+      where: {
+        id: currentId ? { not: currentId } : undefined,
+        tipoMaterial: "lamina",
+        sku,
+        lamina: {
+          is: {
+            aco,
+            carimbo,
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new Error(
+        getMateriaPrimaUniqueErrorMessage({
+          tipo_material: "lamina",
+          sku,
+          lamina: { aco, carimbo },
+        }),
+      );
+    }
+
+    return;
+  }
+
+  const existing = await tx.materiaPrima.findFirst({
+    where: {
+      id: currentId ? { not: currentId } : undefined,
+      tipoMaterial,
+      sku,
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new Error(
+      getMateriaPrimaUniqueErrorMessage({
+        tipo_material: tipoMaterial,
+        sku,
+      }),
+    );
+  }
+}
+
 export async function salvarMPComFoto(formData: FormData) {
   const id = formData.get("id");
   const sku = String(formData.get("sku") ?? "").trim();
   const nome = String(formData.get("nome") ?? "").trim();
-  const categoria = String(formData.get("categoria") ?? "").trim();
-  const tipo_material = obterTipoMaterialPadrao(
-    String(formData.get("tipo_material") ?? ""),
-    categoria,
-  );
+  const tipo_material = normalizarTipoMaterial(String(formData.get("tipo_material") ?? ""));
   const fornecedor_id = formData.get("fornecedor_id");
   const preco_custo = Number(formData.get("preco_custo"));
   const estoque_atual = Number(formData.get("estoque_atual"));
@@ -197,7 +251,6 @@ export async function salvarMPComFoto(formData: FormData) {
 
   if (!sku) throw new Error("SKU é obrigatório.");
   if (!nome) throw new Error("Nome é obrigatório.");
-  if (!categoria) throw new Error("Categoria é obrigatória.");
   if (!Number.isFinite(preco_custo)) throw new Error("Preço de custo inválido.");
 
   const isEdit = typeof id === "string" && id.length > 0;
@@ -212,12 +265,12 @@ export async function salvarMPComFoto(formData: FormData) {
     mpId = id as string;
     try {
       await prisma.$transaction(async (tx) => {
+        await assertMateriaPrimaUniqueFromFormData(tx, formData, tipo_material, sku, mpId);
         await tx.materiaPrima.update({
           where: { id: mpId },
           data: {
             sku,
             nome,
-            categoria,
             tipoMaterial: tipo_material,
             fornecedorId: fornecedor_id ? String(fornecedor_id) : null,
             precoCusto: decimal(preco_custo),
@@ -235,12 +288,12 @@ export async function salvarMPComFoto(formData: FormData) {
     let data: { id: string };
     try {
       data = await prisma.$transaction(async (tx) => {
+        await assertMateriaPrimaUniqueFromFormData(tx, formData, tipo_material, sku);
         const created = await tx.materiaPrima.create({
           data: {
             codigo,
             sku,
             nome,
-            categoria,
             tipoMaterial: tipo_material,
             fornecedorId: fornecedor_id ? String(fornecedor_id) : null,
             precoCusto: decimal(preco_custo),

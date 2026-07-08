@@ -40,15 +40,6 @@ const STATUS_OC_VALIDOS: readonly StatusOC[] = ['pendente', 'enviada', 'recebida
 const ERRO_TIPO_MATERIAL_MISTURADO =
   'Uma ordem de compra não pode misturar matérias-primas de tipos diferentes.'
 
-function normalizarCategoriaOC(categoria: string | null | undefined): string {
-  return (categoria ?? '').trim()
-}
-
-function nomeCategoriaOC(categoria: string | null | undefined): string {
-  const nome = normalizarCategoriaOC(categoria)
-  return nome || 'Sem categoria'
-}
-
 function validarTiposMateriaisUnicosOC(
   tiposMateriais: Iterable<TipoMaterial | string | null | undefined>,
 ): TipoMaterial {
@@ -265,7 +256,6 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
                         select: {
                           id: true,
                           codigo: true,
-                          categoria: true,
                           tipoMaterial: true,
                           nome: true,
                           estoqueAtual: true,
@@ -337,7 +327,6 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
     materia_prima_id: row.materiaPrimaId,
     mp_nome: row.materiaPrima.nome,
     mp_codigo: row.materiaPrima.codigo,
-    categoria: row.materiaPrima.categoria,
     tipo_material: row.materiaPrima.tipoMaterial,
     mp_preco_custo: numberFrom(row.materiaPrima.precoCusto),
     fornecedor_id: row.materiaPrima.fornecedorId ?? null,
@@ -445,7 +434,7 @@ export async function criarOrdemCompraManual(input: {
   const mpIds = [...new Set(linhas.map((i) => i.materia_prima_id))]
   const mps = await prisma.materiaPrima.findMany({
     where: { id: { in: mpIds } },
-    select: { id: true, precoCusto: true, categoria: true, tipoMaterial: true },
+    select: { id: true, precoCusto: true, tipoMaterial: true },
   })
 
   if (mps.length !== mpIds.length) {
@@ -601,7 +590,7 @@ export async function criarItemOrdemCompra(
   const uid = await resolverUsuarioRegistroOC(usuarioRegistroId)
   const mp = await prisma.materiaPrima.findUnique({
     where: { id: materia_prima_id },
-    select: { precoCusto: true, categoria: true, tipoMaterial: true },
+    select: { precoCusto: true, tipoMaterial: true },
   })
 
   if (!mp) throw new Error('Matéria-prima não encontrada.')

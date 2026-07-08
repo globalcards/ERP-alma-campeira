@@ -5,24 +5,18 @@ import Link from "next/link";
 import { criarMateriasPrimasEmLote } from "@/lib/actions/materias-primas";
 import { salvarMPComFoto } from "@/lib/actions/materias-primas-upload";
 import { getOptimizedImageUrl } from "@/lib/images";
+import { buildMateriaPrimaUniqueKey } from "@/lib/materiais/unicidade";
 import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { SmartSelect } from "@/components/ui/smart-select";
-import type {
-  CategoriaMateriaPrimaDB,
-  Fornecedor,
-  MateriaPrima,
-  OpcoesMateriaisPorTipo,
-  TipoMaterial,
-} from "@/types";
+import type { Fornecedor, MateriaPrima, OpcoesMateriaisPorTipo, TipoMaterial } from "@/types";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   fornecedores: Fornecedor[];
-  categoriasMateriaPrima: CategoriaMateriaPrimaDB[];
   opcoesMateriais: OpcoesMateriaisPorTipo;
   loadingReferencias?: boolean;
   editando?: MateriaPrima | null;
@@ -34,7 +28,6 @@ type Form = {
   sku: string;
   nome: string;
   tipo_material: TipoMaterial;
-  categoria: string;
   fornecedor_id: string;
   preco_custo: string;
   estoque_atual: string;
@@ -54,7 +47,6 @@ type BulkRow = {
   id: string;
   sku: string;
   nome: string;
-  categoria: string;
   fornecedor: string;
   preco_custo: string;
   estoque_atual: string;
@@ -81,15 +73,41 @@ type BulkColumn = {
   minWidth?: number;
 };
 
+function ManageResourceLink({
+  href,
+  label,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="flex items-center gap-1 text-xs font-medium transition-colors"
+      style={{ color: "var(--ac-muted)" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        className="size-3.5 shrink-0"
+        aria-hidden
+      >
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+      {label}
+    </Link>
+  );
+}
+
 const BULK_CONTEXT_COLUMNS: BulkColumn[] = [
-  {
-    field: "categoria",
-    label: "Categoria *",
-    placeholder: "Categoria",
-    kind: "input",
-    listId: "mp-bulk-categorias",
-    minWidth: 150,
-  },
   {
     field: "fornecedor",
     label: "Fornecedor",
@@ -207,7 +225,6 @@ const formVazio: Form = {
   sku: "",
   nome: "",
   tipo_material: "outro",
-  categoria: "",
   fornecedor_id: "",
   preco_custo: "",
   estoque_atual: "0",
@@ -223,7 +240,6 @@ const formVazio: Form = {
 
 function getInitialForm(
   editando: MateriaPrima | null | undefined,
-  categoriasMateriaPrima: CategoriaMateriaPrimaDB[],
   tipoMaterialContext?: TipoMaterial | null,
 ): Form {
   if (editando) {
@@ -231,7 +247,6 @@ function getInitialForm(
       sku: editando.sku,
       nome: editando.nome,
       tipo_material: editando.tipo_material,
-      categoria: editando.categoria,
       fornecedor_id: editando.fornecedor_id ?? "",
       preco_custo: String(editando.preco_custo),
       estoque_atual: String(editando.estoque_atual),
@@ -249,7 +264,6 @@ function getInitialForm(
   return {
     ...formVazio,
     tipo_material: tipoMaterialContext ?? "outro",
-    categoria: categoriasMateriaPrima[0]?.nome ?? "Bainha",
   };
 }
 
@@ -321,7 +335,6 @@ function createBulkRow(): BulkRow {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     sku: "",
     nome: "",
-    categoria: "",
     fornecedor: "",
     preco_custo: "",
     estoque_atual: "",
@@ -384,7 +397,6 @@ function isSpreadsheetPaste(text: string): boolean {
 function isBulkRowEmpty(row: BulkRow): boolean {
   return [
     row.nome,
-    row.categoria,
     row.fornecedor,
     row.preco_custo,
     row.estoque_atual,
@@ -432,16 +444,13 @@ export function MPModal({
   open,
   onClose,
   fornecedores,
-  categoriasMateriaPrima,
   opcoesMateriais,
   loadingReferencias = false,
   editando,
   tipoMaterialContext,
   onSaved,
 }: Props) {
-  const [form, setForm] = useState<Form>(() =>
-    getInitialForm(editando, categoriasMateriaPrima, tipoMaterialContext),
-  );
+  const [form, setForm] = useState<Form>(() => getInitialForm(editando, tipoMaterialContext));
   const [modo, setModo] = useState<BulkMode>("single");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => createBulkRows());
   const [erro, setErro] = useState("");
@@ -472,14 +481,14 @@ export function MPModal({
 
   useEffect(() => {
     if (!open) return;
-    setForm(getInitialForm(editando, categoriasMateriaPrima, tipoMaterialContext));
+    setForm(getInitialForm(editando, tipoMaterialContext));
     setModo("single");
     setBulkRows(createBulkRows());
     setErro("");
     setFotoFile(null);
     setFotoPreview("");
     setFotoDragActive(false);
-  }, [open, editando, categoriasMateriaPrima, tipoMaterialContext]);
+  }, [open, editando, tipoMaterialContext]);
 
   function setFotoFromFile(file: File | null) {
     setFotoFile(file);
@@ -567,9 +576,6 @@ export function MPModal({
 
   function validateBulkRows() {
     const errors: string[] = [];
-    const categoriasValidas = new Set(
-      categoriasMateriaPrima.map((categoria) => categoria.nome.trim().toLowerCase()),
-    );
     const fornecedoresPorNome = new Map(
       fornecedores.map((fornecedor) => [fornecedor.nome.trim().toLowerCase(), fornecedor.id]),
     );
@@ -581,7 +587,6 @@ export function MPModal({
       const linha = index + 1;
       const sku = row.sku.trim();
       const nome = row.nome.trim();
-      const categoria = row.categoria.trim();
       const fornecedor = row.fornecedor.trim();
       const precoText = row.preco_custo.trim();
       const estoqueAtualText = row.estoque_atual.trim();
@@ -597,15 +602,9 @@ export function MPModal({
       const missing: string[] = [];
       if (!sku) missing.push("sku");
       if (!nome) missing.push("nome");
-      if (!categoria) missing.push("categoria");
       if (!precoText) missing.push("preço de custo");
       if (missing.length > 0) {
         errors.push(`Linha ${linha}: preencha ${missing.join(", ")}.`);
-        return [];
-      }
-
-      if (!categoriasValidas.has(categoria.toLowerCase())) {
-        errors.push(`Linha ${linha}: selecione uma categoria válida.`);
         return [];
       }
 
@@ -640,7 +639,6 @@ export function MPModal({
         {
           nome,
           sku,
-          categoria,
           tipo_material: tipoMaterialAtual,
           fornecedor_id: fornecedorId,
           preco_custo: preco,
@@ -676,11 +674,9 @@ export function MPModal({
       errors.push("Preencha ao menos uma linha válida para criar em massa.");
     }
 
-    const skuCategoriaKeys = items.map(
-      (item) => `${item.categoria.trim().toLowerCase()}::${item.sku.trim().toLowerCase()}`,
-    );
-    if (new Set(skuCategoriaKeys).size !== skuCategoriaKeys.length) {
-      errors.push("Existem linhas com SKU duplicado dentro da mesma categoria.");
+    const uniqueKeys = items.map((item) => buildMateriaPrimaUniqueKey(item));
+    if (new Set(uniqueKeys).size !== uniqueKeys.length) {
+      errors.push("Existem linhas duplicadas na planilha para a mesma regra de unicidade do material.");
     }
 
     return { items, errors };
@@ -692,19 +688,12 @@ export function MPModal({
     const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
 
     if (editando || modo === "single") {
-      const categoriaSelecionada =
-        form.categoria.trim() || categoriasMateriaPrima[0]?.nome?.trim() || "";
-
       if (!form.nome.trim()) {
         setErro("Nome é obrigatório.");
         return;
       }
       if (!form.sku.trim()) {
         setErro("SKU é obrigatório.");
-        return;
-      }
-      if (!categoriaSelecionada) {
-        setErro("Categoria é obrigatória.");
         return;
       }
       if (!form.preco_custo || Number.isNaN(Number(form.preco_custo))) {
@@ -719,7 +708,6 @@ export function MPModal({
         fd.append("sku", form.sku);
         fd.append("nome", form.nome);
         fd.append("tipo_material", tipoMaterialAtual);
-        fd.append("categoria", categoriaSelecionada);
         fd.append("fornecedor_id", form.fornecedor_id);
         fd.append("preco_custo", String(parseFloat(form.preco_custo)));
         fd.append("estoque_atual", String(parseFloat(form.estoque_atual) || 0));
@@ -794,10 +782,6 @@ export function MPModal({
   const opcoesCabo = getOpcoesSelect(opcoesMateriais.cabo, form.cabo_tipo);
   const opcoesBainha = getOpcoesSelect(opcoesMateriais.bainha, form.bainha_modelo);
   const opcoesBotao = getOpcoesSelect(opcoesMateriais.botao, form.bainha_botao);
-  const opcoesCategoria = categoriasMateriaPrima.map((cat) => ({
-    value: cat.nome,
-    label: cat.nome,
-  }));
   const opcoesFornecedor = fornecedoresCompativeis.map((fornecedor) => ({
     value: fornecedor.id,
     label: fornecedor.nome,
@@ -836,7 +820,7 @@ export function MPModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {loadingReferencias && (
           <p className="text-sm" style={{ color: "var(--ac-muted)" }}>
-            Carregando fornecedores, categorias e listas configuráveis…
+            Carregando fornecedores e listas configuráveis…
           </p>
         )}
 
@@ -929,57 +913,23 @@ export function MPModal({
               </div>
             )}
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="categoria"
-                  className="text-sm font-medium"
-                  style={{ color: "var(--ac-text)" }}
-                >
-                  Categoria *
-                </label>
-                <Link
-                  href="/configuracoes#categorias-materia-prima"
-                  onClick={onClose}
-                  className="flex items-center gap-1 text-xs font-medium transition-colors"
-                  style={{ color: "var(--ac-muted)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.8}
-                    className="size-3.5 shrink-0"
-                    aria-hidden
-                  >
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                  </svg>
-                  Gerenciar categorias
-                </Link>
-              </div>
-              <SmartSelect
-                id="categoria"
-                value={form.categoria || categoriasMateriaPrima[0]?.nome || ""}
-                onChange={(value) => set("categoria", value)}
-                options={opcoesCategoria}
-              />
-            </div>
-
             {tipoMaterialAtual === "lamina" && (
               <div
                 className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
                 style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
               >
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 flex items-center justify-between gap-3">
                   <p
                     className="text-xs font-semibold uppercase tracking-wide"
                     style={{ color: "var(--ac-muted)" }}
                   >
                     Dados da lâmina
                   </p>
+                  <ManageResourceLink
+                    href="/configuracoes#opcoes-material-aco"
+                    label="Gerenciar dados da lâmina"
+                    onNavigate={onClose}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <SmartSelect
@@ -1029,13 +979,18 @@ export function MPModal({
                 className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
                 style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
               >
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 flex items-center justify-between gap-3">
                   <p
                     className="text-xs font-semibold uppercase tracking-wide"
                     style={{ color: "var(--ac-muted)" }}
                   >
                     Dados do cabo
                   </p>
+                  <ManageResourceLink
+                    href="/configuracoes#opcoes-material-cabo"
+                    label="Gerenciar dados do cabo"
+                    onNavigate={onClose}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <SmartSelect
@@ -1072,13 +1027,18 @@ export function MPModal({
                 className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
                 style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
               >
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-3 flex items-center justify-between gap-3">
                   <p
                     className="text-xs font-semibold uppercase tracking-wide"
                     style={{ color: "var(--ac-muted)" }}
                   >
                     Dados da bainha
                   </p>
+                  <ManageResourceLink
+                    href="/configuracoes#opcoes-material-bainha"
+                    label="Gerenciar dados da bainha"
+                    onNavigate={onClose}
+                  />
                 </div>
                 <Input
                   id="bainha_polegadas"
@@ -1139,27 +1099,11 @@ export function MPModal({
                 >
                   Fornecedor
                 </label>
-                <Link
+                <ManageResourceLink
                   href="/fornecedores"
-                  onClick={onClose}
-                  className="flex items-center gap-1 text-xs font-medium transition-colors"
-                  style={{ color: "var(--ac-muted)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.8}
-                    className="size-3.5 shrink-0"
-                    aria-hidden
-                  >
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                  </svg>
-                  Gerenciar fornecedores
-                </Link>
+                  label="Gerenciar fornecedores"
+                  onNavigate={onClose}
+                />
               </div>
               <SmartSelect
                 id="fornecedor"
@@ -1390,14 +1334,14 @@ export function MPModal({
               }}
             >
               Preencha ou cole várias linhas no formato planilha. Linhas totalmente vazias serão
-              ignoradas. Linhas incompletas, com SKU duplicado ou com fornecedor/categoria inválidos
-              serão bloqueadas antes de criar. Todas as linhas serão criadas como{" "}
+              ignoradas. Linhas incompletas, com SKU duplicado ou com fornecedor inválido serão
+              bloqueadas antes de criar. Todas as linhas serão criadas como{" "}
               {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
             </div>
 
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                Use o SKU desejado, o nome da categoria e, no fornecedor, o nome já cadastrado.
+                Use o SKU desejado e, no fornecedor, o nome já cadastrado.
               </div>
               <Button type="button" variant="secondary" onClick={() => addBulkRows()}>
                 Adicionar mais {BULK_ROWS_STEP} linhas
@@ -1488,13 +1432,6 @@ export function MPModal({
                 </tbody>
               </table>
             </div>
-
-            <datalist id="mp-bulk-categorias">
-              {categoriasMateriaPrima.map((categoria) => (
-                <option key={categoria.id} value={categoria.nome} />
-              ))}
-            </datalist>
-
             <datalist id="mp-bulk-fornecedores">
               {fornecedoresCompativeis.map((fornecedor) => (
                 <option key={fornecedor.id} value={fornecedor.nome} />

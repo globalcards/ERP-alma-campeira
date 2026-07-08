@@ -1,0 +1,1 @@
+ALTER TYPE "TipoMaterial" ADD VALUE IF NOT EXISTS 'latao';
