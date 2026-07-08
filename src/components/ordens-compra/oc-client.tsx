@@ -2128,6 +2128,14 @@ function OcCriarModal({
       })),
     [fornecedoresCompativeis],
   );
+  const placeholderFornecedorOc = tipoMaterial
+    ? opcoesFornecedorOc.length > 0
+      ? "Selecione o fornecedor"
+      : "Sem fornecedor compatível"
+    : "Sem fornecedor";
+  const emptyMessageFornecedorOc = tipoMaterial
+    ? "Nenhum fornecedor vinculado a este tipo de material"
+    : "Nenhum fornecedor encontrado";
 
   useEffect(() => {
     if (!open) return;
@@ -2367,12 +2375,8 @@ function OcCriarModal({
             onChange={setFornecedorId}
             disabled={carregando}
             options={opcoesFornecedorOc}
-            placeholder={tipoMaterial ? "Sem fornecedor compatível" : "Sem fornecedor"}
-            emptyMessage={
-              tipoMaterial
-                ? "Nenhum fornecedor vinculado a este tipo de material"
-                : "Nenhum fornecedor encontrado"
-            }
+            placeholder={placeholderFornecedorOc}
+            emptyMessage={emptyMessageFornecedorOc}
             showThumbnails={false}
           />
         </div>
