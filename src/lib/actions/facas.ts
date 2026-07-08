@@ -133,7 +133,7 @@ function mapMateriaPrimaRow(row: {
     estoque_minimo: numberFrom(row.estoqueMinimo),
     created_at: row.createdAt.toISOString(),
     lamina: null,
-    cabo: null,
+    bloco: null,
     bainha: null,
   };
 }

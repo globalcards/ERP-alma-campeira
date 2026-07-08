@@ -663,7 +663,7 @@ export function ConfiguracoesClient({
 
             <CategoriasFacaSection categorias={categorias} />
             <OpcoesMaterialSection tipo="aco" opcoes={opcoesMateriais.aco} />
-            <OpcoesMaterialSection tipo="cabo" opcoes={opcoesMateriais.cabo} />
+            <OpcoesMaterialSection tipo="bloco" opcoes={opcoesMateriais.bloco} />
             <OpcoesMaterialSection tipo="botao" opcoes={opcoesMateriais.botao} />
             <OpcoesMaterialSection tipo="carimbo" opcoes={opcoesMateriais.carimbo} />
             <OpcoesMaterialSection tipo="bainha" opcoes={opcoesMateriais.bainha} />

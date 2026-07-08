@@ -1,6 +1,6 @@
 import type { TipoMaterial } from "@/types";
 
-const TIPOS_VALIDOS: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao"];
+const TIPOS_VALIDOS: TipoMaterial[] = ["lamina", "bloco", "bainha", "latao"];
 
 export function isTipoMaterial(value: string | null | undefined): value is TipoMaterial {
   return TIPOS_VALIDOS.includes((value ?? "").trim().toLowerCase() as TipoMaterial);
@@ -22,8 +22,8 @@ export function labelTipoMaterial(tipoMaterial: TipoMaterial): string {
   switch (tipoMaterial) {
     case "lamina":
       return "Lâminas";
-    case "cabo":
-      return "Cabos";
+    case "bloco":
+      return "Blocos";
     case "bainha":
       return "Bainhas";
     case "latao":

@@ -67,8 +67,8 @@ function getTipoSingular(tipoMaterial: TipoMaterial): string {
   switch (tipoMaterial) {
     case "lamina":
       return "Lâmina";
-    case "cabo":
-      return "Cabo";
+    case "bloco":
+      return "Bloco";
     case "bainha":
       return "Bainha";
     case "latao":
@@ -82,8 +82,8 @@ function getTipoDescricao(tipoMaterial: TipoMaterial): string {
   switch (tipoMaterial) {
     case "lamina":
       return "Aço, carimbo e insumos usados nas lâminas.";
-    case "cabo":
-      return "Materiais de cabo com tipo, cor e acabamento.";
+    case "bloco":
+      return "Materiais de bloco com tipo, cor e acabamento.";
     case "bainha":
       return "Materiais usados em bainhas, com modelo e botão.";
     case "latao":
@@ -105,7 +105,7 @@ function getAgrupamentoMeta(tipoMaterial: TipoMaterial): {
         labelPlural: "Aços",
         fallback: "Sem aço configurado",
       };
-    case "cabo":
+    case "bloco":
       return {
         labelSingular: "Tipo",
         labelPlural: "Tipos",
@@ -130,8 +130,8 @@ function getGrupoMateriaPrima(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") {
     return mp.lamina?.aco?.trim() || "Sem aço configurado";
   }
-  if (mp.tipo_material === "cabo") {
-    return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  if (mp.tipo_material === "bloco") {
+    return mp.bloco?.tipo?.trim() || "Sem tipo configurado";
   }
   if (mp.tipo_material === "bainha") {
     return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
@@ -143,8 +143,8 @@ function formatDetalhesTipo(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") {
     return [mp.lamina?.aco, mp.lamina?.carimbo].filter(Boolean).join(" · ") || "—";
   }
-  if (mp.tipo_material === "cabo") {
-    return [mp.cabo?.tipo, mp.cabo?.cor].filter(Boolean).join(" · ") || "—";
+  if (mp.tipo_material === "bloco") {
+    return [mp.bloco?.tipo, mp.bloco?.cor].filter(Boolean).join(" · ") || "—";
   }
   if (mp.tipo_material === "bainha") {
     return (
@@ -173,17 +173,17 @@ function getColunasEspecificas(tipoMaterial: TipoMaterial): Array<{
           value: (mp) => mp.lamina?.carimbo?.trim() || "—",
         },
       ];
-    case "cabo":
+    case "bloco":
       return [
         {
           key: "tipo",
           label: "Tipo",
-          value: (mp) => mp.cabo?.tipo?.trim() || "—",
+          value: (mp) => mp.bloco?.tipo?.trim() || "—",
         },
         {
           key: "cor",
           label: "Cor",
-          value: (mp) => mp.cabo?.cor?.trim() || "—",
+          value: (mp) => mp.bloco?.cor?.trim() || "—",
         },
       ];
     case "bainha":
@@ -282,7 +282,7 @@ function MPTabela({
   onOpenPhoto: (mp: MateriaPrima, thumbFallback: string) => void;
 }) {
   const colunasEspecificas = getColunasEspecificas(tipoMaterialAtivo);
-  const totalColunas = 9 + colunasEspecificas.length;
+  const totalColunas = 8 + colunasEspecificas.length;
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--ac-border)" }}>
@@ -309,12 +309,6 @@ function MPTabela({
               sortDirection={sortDirection}
               onToggle={onToggleSort}
             />
-            <th
-              className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wide"
-              style={{ color: "var(--ac-muted)" }}
-            >
-              Detalhes
-            </th>
             {colunasEspecificas.map((coluna) => (
               <th
                 key={coluna.key}
@@ -451,9 +445,6 @@ function MPTabela({
                 <td className="px-4 py-3 font-medium" style={{ color: "var(--ac-text)" }}>
                   {mp.nome}
                 </td>
-                <td className="px-4 py-3 text-xs" style={{ color: "var(--ac-muted)" }}>
-                  {formatDetalhesTipo(mp)}
-                </td>
                 {colunasEspecificas.map((coluna) => (
                   <td
                     key={coluna.key}
@@ -582,7 +573,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [fotoLightboxAlt, setFotoLightboxAlt] = useState<string>("");
   const [selectedTipoMaterial, setSelectedTipoMaterial] = useState<TipoMaterial>(() => {
     return (
-      (["lamina", "cabo", "bainha", "latao"] as const).find((tipo) =>
+      (["lamina", "bloco", "bainha", "latao"] as const).find((tipo) =>
         initialMP.some((mp) => mp.tipo_material === tipo),
       ) ?? "lamina"
     );
@@ -593,7 +584,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const tipos = useMemo<TipoResumo[]>(() => {
-    const ordem: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao"];
+    const ordem: TipoMaterial[] = ["lamina", "bloco", "bainha", "latao"];
     const counts = new Map<TipoMaterial, number>();
     for (const tipo of ordem) counts.set(tipo, 0);
     for (const mp of materiasPrimas) {
@@ -1068,7 +1059,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
         opcoesMateriais={
           modalDataAtual?.opcoesMateriais ?? {
             aco: [],
-            cabo: [],
+            bloco: [],
             botao: [],
             carimbo: [],
             bainha: [],

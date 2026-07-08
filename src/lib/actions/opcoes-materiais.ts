@@ -7,7 +7,7 @@ import { fetchOpcoesMaterialList } from '@/lib/cache/list-data'
 import { prisma } from '@/lib/prisma'
 import type { OpcaoMaterial, OpcoesMateriaisPorTipo, TipoOpcaoMaterial } from '@/types'
 
-const TIPOS_OPCAO_MATERIAL: TipoOpcaoMaterial[] = ['aco', 'cabo', 'botao', 'carimbo', 'bainha']
+const TIPOS_OPCAO_MATERIAL: TipoOpcaoMaterial[] = ['aco', 'bloco', 'botao', 'carimbo', 'bainha']
 
 type OpcaoMaterialInput = {
   nome: string
@@ -34,7 +34,7 @@ function normalizeNome(nome: string): string {
 
 function throwFriendlyUniqueError(error: unknown, tipo: TipoOpcaoMaterial): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-    const label = tipo === 'aco' ? 'aço' : tipo === 'cabo' ? 'cabo' : tipo === 'botao' ? 'botão' : tipo === 'carimbo' ? 'carimbo' : 'bainha'
+    const label = tipo === 'aco' ? 'aço' : tipo === 'bloco' ? 'bloco' : tipo === 'botao' ? 'botão' : tipo === 'carimbo' ? 'carimbo' : 'bainha'
     throw new Error(`Já existe um ${label} com esse nome.`)
   }
   throw error
@@ -47,7 +47,7 @@ async function countUsoOpcaoMaterial(
 ): Promise<number> {
   if (tipo === 'aco') return tx.materialLamina.count({ where: { aco: nome } })
   if (tipo === 'carimbo') return tx.materialLamina.count({ where: { carimbo: nome } })
-  if (tipo === 'cabo') return tx.materialCabo.count({ where: { tipo: nome } })
+  if (tipo === 'bloco') return tx.materialBloco.count({ where: { tipo: nome } })
   if (tipo === 'botao') return tx.materialBainha.count({ where: { botao: nome } })
   return tx.materialBainha.count({ where: { modelo: nome } })
 }
@@ -70,8 +70,8 @@ async function cascadeRenameOpcaoMaterial(
     })
     return
   }
-  if (tipo === 'cabo') {
-    await tx.materialCabo.updateMany({ where: { tipo: nomeAnterior }, data: { tipo: nomeNovo } })
+  if (tipo === 'bloco') {
+    await tx.materialBloco.updateMany({ where: { tipo: nomeAnterior }, data: { tipo: nomeNovo } })
     return
   }
   if (tipo === 'botao') {

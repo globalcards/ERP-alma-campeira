@@ -21,14 +21,14 @@ enum TipoDocumento {
 
 enum TipoMaterial {
   lamina
-  cabo
+  bloco
   bainha
   latao
 }
 
 enum TipoOpcaoMaterial {
   aco
-  cabo
+  bloco
   botao
   carimbo
   bainha
@@ -308,7 +308,7 @@ model MateriaPrima {
   ordemCompraItens     OrdemCompraItem[]
   movimentacoesEstoque MovimentacaoEstoque[]
   lamina               MaterialLamina?
-  cabo                 MaterialCabo?
+  bloco                 MaterialBloco?
   bainha               MaterialBainha?
 
   @@index([tipoMaterial], map: "idx_materias_primas_tipo_material")
@@ -336,13 +336,13 @@ model MaterialLamina {
   @@map("materiais_laminas")
 }
 
-model MaterialCabo {
+model MaterialBloco {
   materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
   tipo           String?
   cor            String?
   materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
 
-  @@map("materiais_cabos")
+  @@map("materiais_blocos")
 }
 
 model MaterialBainha {

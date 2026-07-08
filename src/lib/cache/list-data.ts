@@ -99,7 +99,7 @@ function mapMateriaPrima(row: {
   createdAt: Date;
   fornecedor: { id: string; nome: string } | null;
   lamina: { aco: string | null; carimbo: string | null } | null;
-  cabo: { tipo: string | null; cor: string | null } | null;
+  bloco: { tipo: string | null; cor: string | null } | null;
   bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
 }): MateriaPrima {
   return {
@@ -115,7 +115,7 @@ function mapMateriaPrima(row: {
     estoque_minimo: row.estoqueMinimo.toNumber(),
     created_at: row.createdAt.toISOString(),
     lamina: row.lamina,
-    cabo: row.cabo,
+    bloco: row.bloco,
     bainha: row.bainha,
     fornecedor: row.fornecedor
       ? {
@@ -154,7 +154,7 @@ function materiasPrimasCache(userId: string) {
           lamina: {
             select: { aco: true, carimbo: true },
           },
-          cabo: {
+          bloco: {
             select: { tipo: true, cor: true },
           },
           bainha: {
@@ -499,7 +499,7 @@ function ordensCompraCache(userId: string) {
                   sku: true,
                   tipoMaterial: true,
                   lamina: { select: { aco: true, carimbo: true } },
-                  cabo: { select: { tipo: true, cor: true } },
+                  bloco: { select: { tipo: true, cor: true } },
                   bainha: { select: { polegadas: true, modelo: true, botao: true } },
                 },
               },
@@ -573,7 +573,7 @@ function ordensCompraCache(userId: string) {
                   sku: item.materiaPrima.sku,
                   tipo_material: item.materiaPrima.tipoMaterial,
                   lamina: item.materiaPrima.lamina,
-                  cabo: item.materiaPrima.cabo,
+                  bloco: item.materiaPrima.bloco,
                   bainha: item.materiaPrima.bainha,
                 }
               : undefined,

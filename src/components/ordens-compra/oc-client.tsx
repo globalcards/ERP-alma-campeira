@@ -83,14 +83,14 @@ function normalizarAgrupadorMaterial(valor: string | null | undefined) {
 
 function obterAgrupadorMaterial(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") return mp.lamina?.aco?.trim() || "Sem aço configurado";
-  if (mp.tipo_material === "cabo") return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  if (mp.tipo_material === "bloco") return mp.bloco?.tipo?.trim() || "Sem tipo configurado";
   if (mp.tipo_material === "bainha") return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
   return "Materiais de latão";
 }
 
 function obterRotuloAgrupador(tipoMaterial: TipoMaterial | ""): string {
   if (tipoMaterial === "lamina") return "Aço";
-  if (tipoMaterial === "cabo") return "Tipo";
+  if (tipoMaterial === "bloco") return "Tipo";
   if (tipoMaterial === "bainha") return "Modelo";
   return "Lista";
 }
@@ -119,10 +119,10 @@ function getColunasEspecificasMaterial(
         { key: "aco", label: "Aço", value: (mp) => mp?.lamina?.aco?.trim() || "—" },
         { key: "carimbo", label: "Carimbo", value: (mp) => mp?.lamina?.carimbo?.trim() || "—" },
       ];
-    case "cabo":
+    case "bloco":
       return [
-        { key: "tipo", label: "Tipo", value: (mp) => mp?.cabo?.tipo?.trim() || "—" },
-        { key: "cor", label: "Cor", value: (mp) => mp?.cabo?.cor?.trim() || "—" },
+        { key: "tipo", label: "Tipo", value: (mp) => mp?.bloco?.tipo?.trim() || "—" },
+        { key: "cor", label: "Cor", value: (mp) => mp?.bloco?.cor?.trim() || "—" },
       ];
     case "bainha":
       return [

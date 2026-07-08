@@ -34,8 +34,8 @@ type Form = {
   estoque_minimo: string;
   lamina_aco: string;
   lamina_carimbo: string;
-  cabo_tipo: string;
-  cabo_cor: string;
+  bloco_tipo: string;
+  bloco_cor: string;
   bainha_polegadas: string;
   bainha_modelo: string;
   bainha_botao: string;
@@ -53,8 +53,8 @@ type BulkRow = {
   estoque_minimo: string;
   lamina_aco: string;
   lamina_carimbo: string;
-  cabo_tipo: string;
-  cabo_cor: string;
+  bloco_tipo: string;
+  bloco_cor: string;
   bainha_polegadas: string;
   bainha_modelo: string;
   bainha_botao: string;
@@ -69,7 +69,7 @@ type BulkColumn = {
   kind: "input" | "select";
   inputMode?: "decimal";
   listId?: string;
-  optionType?: "aco" | "carimbo" | "cabo" | "bainha" | "botao";
+  optionType?: "aco" | "carimbo" | "bloco" | "bainha" | "botao";
   minWidth?: number;
 };
 
@@ -177,15 +177,15 @@ const BULK_LAMINA_COLUMNS: BulkColumn[] = [
 
 const BULK_CABO_COLUMNS: BulkColumn[] = [
   {
-    field: "cabo_tipo",
+    field: "bloco_tipo",
     label: "Tipo",
     placeholder: "Selecione um tipo",
     kind: "select",
-    optionType: "cabo",
+    optionType: "bloco",
     minWidth: 170,
   },
   {
-    field: "cabo_cor",
+    field: "bloco_cor",
     label: "Cor",
     placeholder: "Cor",
     kind: "input",
@@ -231,8 +231,8 @@ const formVazio: Form = {
   estoque_minimo: "0",
   lamina_aco: "",
   lamina_carimbo: "",
-  cabo_tipo: "",
-  cabo_cor: "",
+  bloco_tipo: "",
+  bloco_cor: "",
   bainha_polegadas: "",
   bainha_modelo: "",
   bainha_botao: "",
@@ -253,8 +253,8 @@ function getInitialForm(
       estoque_minimo: String(editando.estoque_minimo),
       lamina_aco: editando.lamina?.aco ?? "",
       lamina_carimbo: editando.lamina?.carimbo ?? "",
-      cabo_tipo: editando.cabo?.tipo ?? "",
-      cabo_cor: editando.cabo?.cor ?? "",
+      bloco_tipo: editando.bloco?.tipo ?? "",
+      bloco_cor: editando.bloco?.cor ?? "",
       bainha_polegadas: editando.bainha?.polegadas ?? "",
       bainha_modelo: editando.bainha?.modelo ?? "",
       bainha_botao: editando.bainha?.botao ?? "",
@@ -279,10 +279,10 @@ function getTipoMaterialMeta(tipoMaterial: TipoMaterial) {
         singular: "Lâmina",
         descricao: "Cadastre aço, carimbo e demais dados específicos da lâmina.",
       };
-    case "cabo":
+    case "bloco":
       return {
-        singular: "Cabo",
-        descricao: "Cadastre tipo, cor e demais dados específicos do cabo.",
+        singular: "Bloco",
+        descricao: "Cadastre tipo, cor e demais dados específicos do bloco.",
       };
     case "bainha":
       return {
@@ -346,8 +346,8 @@ function createBulkRow(): BulkRow {
     estoque_minimo: "",
     lamina_aco: "",
     lamina_carimbo: "",
-    cabo_tipo: "",
-    cabo_cor: "",
+    bloco_tipo: "",
+    bloco_cor: "",
     bainha_polegadas: "",
     bainha_modelo: "",
     bainha_botao: "",
@@ -409,8 +409,8 @@ function isBulkRowEmpty(row: BulkRow): boolean {
     row.sku,
     row.lamina_aco,
     row.lamina_carimbo,
-    row.cabo_tipo,
-    row.cabo_cor,
+    row.bloco_tipo,
+    row.bloco_cor,
     row.bainha_polegadas,
     row.bainha_modelo,
     row.bainha_botao,
@@ -431,7 +431,7 @@ function getBulkColumns(tipoMaterial: TipoMaterial): BulkColumn[] {
       ...BULK_COMMERCIAL_COLUMNS,
     ];
   }
-  if (tipoMaterial === "cabo") {
+  if (tipoMaterial === "bloco") {
     return [
       ...BULK_CONTEXT_COLUMNS,
       ...BULK_CABO_COLUMNS,
@@ -611,8 +611,8 @@ export function MPModal({
       const estoqueMinimoText = row.estoque_minimo.trim();
       const laminaAco = row.lamina_aco.trim();
       const laminaCarimbo = row.lamina_carimbo.trim();
-      const caboTipo = row.cabo_tipo.trim();
-      const caboCor = row.cabo_cor.trim();
+      const blocoTipo = row.bloco_tipo.trim();
+      const blocoCor = row.bloco_cor.trim();
       const bainhaPolegadas = row.bainha_polegadas.trim();
       const bainhaModelo = row.bainha_modelo.trim();
       const bainhaBotao = row.bainha_botao.trim();
@@ -669,11 +669,11 @@ export function MPModal({
                   carimbo: laminaCarimbo || null,
                 }
               : null,
-          cabo:
-            tipoMaterialAtual === "cabo"
+          bloco:
+            tipoMaterialAtual === "bloco"
               ? {
-                  tipo: caboTipo || null,
-                  cor: caboCor || null,
+                  tipo: blocoTipo || null,
+                  cor: blocoCor || null,
                 }
               : null,
           bainha:
@@ -740,8 +740,8 @@ export function MPModal({
         fd.append("estoque_minimo", String(parseFloat(form.estoque_minimo) || 0));
         fd.append("lamina_aco", form.lamina_aco);
         fd.append("lamina_carimbo", form.lamina_carimbo);
-        fd.append("cabo_tipo", form.cabo_tipo);
-        fd.append("cabo_cor", form.cabo_cor);
+        fd.append("bloco_tipo", form.bloco_tipo);
+        fd.append("bloco_cor", form.bloco_cor);
         fd.append("bainha_polegadas", form.bainha_polegadas);
         fd.append("bainha_modelo", form.bainha_modelo);
         fd.append("bainha_botao", form.bainha_botao);
@@ -807,7 +807,7 @@ export function MPModal({
   );
   const opcoesAco = getOpcoesSelect(opcoesMateriais.aco, form.lamina_aco);
   const opcoesCarimbo = getOpcoesSelect(opcoesMateriais.carimbo, form.lamina_carimbo);
-  const opcoesCabo = getOpcoesSelect(opcoesMateriais.cabo, form.cabo_tipo);
+  const opcoesBloco = getOpcoesSelect(opcoesMateriais.bloco, form.bloco_tipo);
   const opcoesBainha = getOpcoesSelect(opcoesMateriais.bainha, form.bainha_modelo);
   const opcoesBotao = getOpcoesSelect(opcoesMateriais.botao, form.bainha_botao);
   const opcoesFornecedor = fornecedoresCompativeis.map((fornecedor) => ({
@@ -832,8 +832,8 @@ export function MPModal({
         return getOpcoesSelect(opcoesMateriais.aco, row.lamina_aco);
       case "carimbo":
         return getOpcoesSelect(opcoesMateriais.carimbo, row.lamina_carimbo);
-      case "cabo":
-        return getOpcoesSelect(opcoesMateriais.cabo, row.cabo_tipo);
+      case "bloco":
+        return getOpcoesSelect(opcoesMateriais.bloco, row.bloco_tipo);
       case "bainha":
         return getOpcoesSelect(opcoesMateriais.bainha, row.bainha_modelo);
       case "botao":
@@ -933,7 +933,7 @@ export function MPModal({
                   onChange={(value) => setTipoMaterial(value as TipoMaterial)}
                   options={[
                     { value: "lamina", label: "Lâminas" },
-                    { value: "cabo", label: "Cabos" },
+                    { value: "bloco", label: "Blocos" },
                     { value: "bainha", label: "Bainhas" },
                     { value: "latao", label: "Latão" },
                   ]}
@@ -1002,7 +1002,7 @@ export function MPModal({
               </div>
             )}
 
-            {tipoMaterialAtual === "cabo" && (
+            {tipoMaterialAtual === "bloco" && (
               <div
                 className="rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
                 style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
@@ -1012,40 +1012,40 @@ export function MPModal({
                     className="text-xs font-semibold uppercase tracking-wide"
                     style={{ color: "var(--ac-muted)" }}
                   >
-                    Dados do cabo
+                    Dados do bloco
                   </p>
                   <ManageResourceLink
-                    href="/configuracoes#opcoes-material-cabo"
-                    label="Gerenciar dados do cabo"
+                    href="/configuracoes#opcoes-material-bloco"
+                    label="Gerenciar dados do bloco"
                     onNavigate={onClose}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <SmartSelect
-                    id="cabo_tipo"
+                    id="bloco_tipo"
                     label="Tipo"
-                    value={form.cabo_tipo}
-                    onChange={(value) => set("cabo_tipo", value)}
-                    options={opcoesCabo}
-                    placeholder="Selecione um tipo de cabo"
+                    value={form.bloco_tipo}
+                    onChange={(value) => set("bloco_tipo", value)}
+                    options={opcoesBloco}
+                    placeholder="Selecione um tipo de bloco"
                     showThumbnails={false}
                   />
-                  {opcoesCabo.length === 0 && (
+                  {opcoesBloco.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
-                      <Link href="/configuracoes#opcoes-material-cabo" onClick={onClose}>
-                        Configurações &gt; Cabos
+                      <Link href="/configuracoes#opcoes-material-bloco" onClick={onClose}>
+                        Configurações &gt; Blocos
                       </Link>
                       .
                     </p>
                   )}
                 </div>
                 <Input
-                  id="cabo_cor"
+                  id="bloco_cor"
                   label="Cor"
                   placeholder="Ex: Imbuia escuro"
-                  value={form.cabo_cor}
-                  onChange={(e) => set("cabo_cor", e.target.value)}
+                  value={form.bloco_cor}
+                  onChange={(e) => set("bloco_cor", e.target.value)}
                 />
               </div>
             )}

@@ -1,20 +1,20 @@
 /** CNPJ (padrão em PJ) ou CPF — armazenado só com dígitos em `documento`. */
 export type TipoDocumento = "cnpj" | "cpf";
 
-export type TipoMaterial = "lamina" | "cabo" | "bainha" | "latao";
+export type TipoMaterial = "lamina" | "bloco" | "bainha" | "latao";
 
-export type TipoOpcaoMaterial = "aco" | "cabo" | "botao" | "carimbo" | "bainha";
+export type TipoOpcaoMaterial = "aco" | "bloco" | "botao" | "carimbo" | "bainha";
 
 export const TIPOS_MATERIAL: { value: TipoMaterial; label: string }[] = [
   { value: "lamina", label: "Lâminas" },
-  { value: "cabo", label: "Cabos" },
+  { value: "bloco", label: "Blocos" },
   { value: "bainha", label: "Bainhas" },
   { value: "latao", label: "Latão" },
 ];
 
 export const TIPOS_OPCAO_MATERIAL: { value: TipoOpcaoMaterial; label: string }[] = [
   { value: "aco", label: "Aços" },
-  { value: "cabo", label: "Cabos" },
+  { value: "bloco", label: "Blocos" },
   { value: "botao", label: "Botões" },
   { value: "carimbo", label: "Carimbos" },
   { value: "bainha", label: "Bainhas" },
@@ -36,7 +36,7 @@ export type MateriaPrimaLamina = {
   carimbo: string | null;
 };
 
-export type MateriaPrimaCabo = {
+export type MateriaPrimaBloco = {
   tipo: string | null;
   cor: string | null;
 };
@@ -82,7 +82,7 @@ export type MateriaPrima = {
   estoque_minimo: number;
   created_at: string;
   lamina?: MateriaPrimaLamina | null;
-  cabo?: MateriaPrimaCabo | null;
+  bloco?: MateriaPrimaBloco | null;
   bainha?: MateriaPrimaBainha | null;
   // join
   fornecedor?: Fornecedor | null;
@@ -488,7 +488,7 @@ export type OrdemCompraItem = {
   preco_unitario: number | null;
   materia_prima?: Pick<
     MateriaPrima,
-    "id" | "codigo" | "nome" | "tipo_material" | "sku" | "lamina" | "cabo" | "bainha"
+    "id" | "codigo" | "nome" | "tipo_material" | "sku" | "lamina" | "bloco" | "bainha"
   >;
 };
 

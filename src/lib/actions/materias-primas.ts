@@ -16,7 +16,7 @@ import type {
   Fornecedor,
   TipoMaterial,
   MateriaPrimaLamina,
-  MateriaPrimaCabo,
+  MateriaPrimaBloco,
   MateriaPrimaBainha,
   OpcoesMateriaisPorTipo,
   TipoOpcaoMaterial,
@@ -241,7 +241,7 @@ function mapMateriaPrimaDetalhe(row: {
     tiposMaterial?: { tipoMaterial: TipoMaterial }[];
   } | null;
   lamina: { aco: string | null; carimbo: string | null } | null;
-  cabo: { tipo: string | null; cor: string | null } | null;
+  bloco: { tipo: string | null; cor: string | null } | null;
   bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
 }): MateriaPrima {
   return {
@@ -257,7 +257,7 @@ function mapMateriaPrimaDetalhe(row: {
     estoque_minimo: numberFrom(row.estoqueMinimo),
     created_at: row.createdAt.toISOString(),
     lamina: row.lamina,
-    cabo: row.cabo,
+    bloco: row.bloco,
     bainha: row.bainha,
     fornecedor: mapFornecedorDetalhe(row.fornecedor),
   };
@@ -304,7 +304,7 @@ type MPInput = {
   estoque_atual: number;
   estoque_minimo: number;
   lamina?: Partial<MateriaPrimaLamina> | null;
-  cabo?: Partial<MateriaPrimaCabo> | null;
+  bloco?: Partial<MateriaPrimaBloco> | null;
   bainha?: Partial<MateriaPrimaBainha> | null;
 };
 
@@ -317,7 +317,7 @@ type NormalizedMPInput = {
   estoque_atual: number;
   estoque_minimo: number;
   lamina: MateriaPrimaLamina | null;
-  cabo: MateriaPrimaCabo | null;
+  bloco: MateriaPrimaBloco | null;
   bainha: MateriaPrimaBainha | null;
 };
 
@@ -358,11 +358,11 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
             carimbo: normalizeOptionalText(input.lamina?.carimbo),
           }
         : null,
-    cabo:
-      tipo_material === "cabo"
+    bloco:
+      tipo_material === "bloco"
         ? {
-            tipo: normalizeOptionalText(input.cabo?.tipo),
-            cor: normalizeOptionalText(input.cabo?.cor),
+            tipo: normalizeOptionalText(input.bloco?.tipo),
+            cor: normalizeOptionalText(input.bloco?.cor),
           }
         : null,
     bainha:
@@ -411,8 +411,8 @@ function listarOpcoesSelecionadas(input: NormalizedMPInput): Array<{
       { tipo: "carimbo", valor: input.lamina?.carimbo ?? null },
     ];
   }
-  if (input.tipo_material === "cabo") {
-    return [{ tipo: "cabo", valor: input.cabo?.tipo ?? null }];
+  if (input.tipo_material === "bloco") {
+    return [{ tipo: "bloco", valor: input.bloco?.tipo ?? null }];
   }
   if (input.tipo_material === "bainha") {
     return [
@@ -452,7 +452,7 @@ async function salvarDetalhesTipoMaterial(
 ) {
   await Promise.all([
     tx.materialLamina.deleteMany({ where: { materiaPrimaId } }),
-    tx.materialCabo.deleteMany({ where: { materiaPrimaId } }),
+    tx.materialBloco.deleteMany({ where: { materiaPrimaId } }),
     tx.materialBainha.deleteMany({ where: { materiaPrimaId } }),
   ]);
 
@@ -467,12 +467,12 @@ async function salvarDetalhesTipoMaterial(
     return;
   }
 
-  if (input.tipo_material === "cabo") {
-    await tx.materialCabo.create({
+  if (input.tipo_material === "bloco") {
+    await tx.materialBloco.create({
       data: {
         materiaPrimaId,
-        tipo: input.cabo?.tipo ?? null,
-        cor: input.cabo?.cor ?? null,
+        tipo: input.bloco?.tipo ?? null,
+        cor: input.bloco?.cor ?? null,
       },
     });
     return;
@@ -682,7 +682,7 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
         lamina: {
           select: { aco: true, carimbo: true },
         },
-        cabo: {
+        bloco: {
           select: { tipo: true, cor: true },
         },
         bainha: {
@@ -770,11 +770,11 @@ export async function getMPEditModalData(tipoMaterial?: TipoMaterial): Promise<M
   return withTiming("getMPEditModalData", async () => {
     const userId = await requireAuthenticatedUserId();
     await assertPermissao("materias_primas", "ver");
-    const [fornecedores, opcoesAco, opcoesCabo, opcoesBotao, opcoesCarimbo, opcoesBainha] =
+    const [fornecedores, opcoesAco, opcoesBloco, opcoesBotao, opcoesCarimbo, opcoesBainha] =
       await Promise.all([
         fetchFornecedoresSelect(userId),
         fetchOpcoesMaterialList(userId, "aco", false),
-        fetchOpcoesMaterialList(userId, "cabo", false),
+        fetchOpcoesMaterialList(userId, "bloco", false),
         fetchOpcoesMaterialList(userId, "botao", false),
         fetchOpcoesMaterialList(userId, "carimbo", false),
         fetchOpcoesMaterialList(userId, "bainha", false),
@@ -787,7 +787,7 @@ export async function getMPEditModalData(tipoMaterial?: TipoMaterial): Promise<M
         : (fornecedores as Fornecedor[]),
       opcoesMateriais: {
         aco: opcoesAco,
-        cabo: opcoesCabo,
+        bloco: opcoesBloco,
         botao: opcoesBotao,
         carimbo: opcoesCarimbo,
         bainha: opcoesBainha,

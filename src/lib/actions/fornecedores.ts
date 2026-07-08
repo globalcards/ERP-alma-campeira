@@ -23,7 +23,7 @@ async function revalidateFornecedoresList() {
 }
 
 function normalizarTiposMaterial(input: TipoMaterial[] | undefined): TipoMaterial[] {
-  const permitidos: TipoMaterial[] = ["lamina", "cabo", "bainha", "latao"];
+  const permitidos: TipoMaterial[] = ["lamina", "bloco", "bainha", "latao"];
   const unicos = new Set((input ?? []).filter((item): item is TipoMaterial => permitidos.includes(item)));
   return Array.from(unicos);
 }

@@ -44,10 +44,10 @@ function renderDetalhesTipo(mp: MPDetalheData["mp"]) {
       { label: "Carimbo", value: mp.lamina?.carimbo },
     ];
   }
-  if (mp.tipo_material === "cabo") {
+  if (mp.tipo_material === "bloco") {
     return [
-      { label: "Tipo", value: mp.cabo?.tipo },
-      { label: "Cor", value: mp.cabo?.cor },
+      { label: "Tipo", value: mp.bloco?.tipo },
+      { label: "Cor", value: mp.bloco?.cor },
     ];
   }
   if (mp.tipo_material === "bainha") {
@@ -689,7 +689,7 @@ export function MPDetalheClient({
         opcoesMateriais={
           editModalData?.opcoesMateriais ?? {
             aco: [],
-            cabo: [],
+            bloco: [],
             botao: [],
             carimbo: [],
             bainha: [],

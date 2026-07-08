@@ -84,8 +84,8 @@ function listarOpcoesSelecionadas(
       { tipo: "carimbo", valor: normalizeOptionalText(formData.get("lamina_carimbo")) },
     ];
   }
-  if (tipoMaterial === "cabo") {
-    return [{ tipo: "cabo", valor: normalizeOptionalText(formData.get("cabo_tipo")) }];
+  if (tipoMaterial === "bloco") {
+    return [{ tipo: "bloco", valor: normalizeOptionalText(formData.get("bloco_tipo")) }];
   }
   if (tipoMaterial === "bainha") {
     return [
@@ -126,7 +126,7 @@ async function salvarDetalhesTipoMaterial(
 ) {
   await Promise.all([
     tx.materialLamina.deleteMany({ where: { materiaPrimaId } }),
-    tx.materialCabo.deleteMany({ where: { materiaPrimaId } }),
+    tx.materialBloco.deleteMany({ where: { materiaPrimaId } }),
     tx.materialBainha.deleteMany({ where: { materiaPrimaId } }),
   ]);
 
@@ -141,12 +141,12 @@ async function salvarDetalhesTipoMaterial(
     return;
   }
 
-  if (tipoMaterial === "cabo") {
-    await tx.materialCabo.create({
+  if (tipoMaterial === "bloco") {
+    await tx.materialBloco.create({
       data: {
         materiaPrimaId,
-        tipo: normalizeOptionalText(formData.get("cabo_tipo")),
-        cor: normalizeOptionalText(formData.get("cabo_cor")),
+        tipo: normalizeOptionalText(formData.get("bloco_tipo")),
+        cor: normalizeOptionalText(formData.get("bloco_cor")),
       },
     });
     return;

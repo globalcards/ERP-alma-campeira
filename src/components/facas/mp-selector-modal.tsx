@@ -29,8 +29,8 @@ function getGrupoNome(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") {
     return mp.lamina?.aco?.trim() || "Sem aço configurado";
   }
-  if (mp.tipo_material === "cabo") {
-    return mp.cabo?.tipo?.trim() || "Sem tipo configurado";
+  if (mp.tipo_material === "bloco") {
+    return mp.bloco?.tipo?.trim() || "Sem tipo configurado";
   }
   if (mp.tipo_material === "bainha") {
     return mp.bainha?.modelo?.trim() || "Sem modelo configurado";
@@ -40,7 +40,7 @@ function getGrupoNome(mp: MateriaPrima): string {
 
 function getGrupoRotulo(tipoMaterial: TipoMaterial): string {
   if (tipoMaterial === "lamina") return "Aço";
-  if (tipoMaterial === "cabo") return "Tipo";
+  if (tipoMaterial === "bloco") return "Tipo";
   if (tipoMaterial === "bainha") return "Modelo";
   return "Lista";
 }
