@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SmartSelect } from "@/components/ui/smart-select";
 import { MPSelectorModal, type BomItemDraft } from "./mp-selector-modal";
 import { getFacaBOM } from "@/lib/actions/facas";
 import { salvarFacaComFoto } from "@/lib/actions/facas-upload";
@@ -213,6 +214,41 @@ export function FacaModal({
     for (const mp of materiasPrimas) map.set(mp.id, mp);
     return map;
   }, [materiasPrimas]);
+  const opcoesCategoria = categorias.map((categoria) => ({
+    value: categoria.nome,
+    label: categoria.nome,
+  }));
+  const opcoesCfop = CFOPS_SAIDA.map((cfop) => ({
+    value: cfop.codigo,
+    label: `${cfop.codigo} — ${cfop.descricao}`,
+    searchText: `${cfop.codigo} ${cfop.descricao}`,
+  }));
+  const opcoesCstIcms = [
+    ...CST_ICMS.map((item) => ({
+      value: item.codigo,
+      label: `CST ${item.codigo} — ${item.descricao}`,
+      searchText: `CST ${item.codigo} ${item.descricao}`,
+    })),
+    ...CSOSN_ICMS.map((item) => ({
+      value: item.codigo,
+      label: `CSOSN ${item.codigo} — ${item.descricao}`,
+      searchText: `CSOSN ${item.codigo} ${item.descricao}`,
+    })),
+  ];
+  const opcoesCstPisCofins = CST_PIS_COFINS.map((item) => ({
+    value: item.codigo,
+    label: `${item.codigo} — ${item.descricao}`,
+    searchText: `${item.codigo} ${item.descricao}`,
+  }));
+  const opcoesOrigem = ORIGENS_MERCADORIA.map((item) => ({
+    value: item.codigo,
+    label: `${item.codigo} — ${item.descricao}`,
+    searchText: `${item.codigo} ${item.descricao}`,
+  }));
+  const opcoesUnidade = UNIDADES_MEDIDA.map((unidade) => ({
+    value: unidade,
+    label: unidade,
+  }));
 
   const custoReferencia = useMemo(() => {
     return bomItens.reduce((acc, item) => {
@@ -348,37 +384,13 @@ export function FacaModal({
               Gerenciar categorias
             </Link>
           </div>
-          <select
+          <SmartSelect
             id="categoria"
             value={form.categoria}
-            onChange={(e) => set("categoria", e.target.value)}
-            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-all appearance-none"
-            style={{
-              background: "var(--ac-card)",
-              border: "1px solid var(--ac-border)",
-              color: "var(--ac-text)",
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%236b7280' stroke-width='2' d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right 10px center",
-              backgroundSize: "16px",
-              paddingRight: "36px",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--ac-accent)";
-              e.currentTarget.style.boxShadow =
-                "0 0 0 3px color-mix(in srgb, var(--ac-accent) 20%, transparent)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--ac-border)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            {categorias.map((c) => (
-              <option key={c.id} value={c.nome}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => set("categoria", value)}
+            options={opcoesCategoria}
+            showThumbnails={false}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -633,23 +645,13 @@ export function FacaModal({
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     CFOP padrão
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.cfop_padrao}
-                    onChange={(e) => setFiscal((f) => ({ ...f, cfop_padrao: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    <option value="">— Não definido —</option>
-                    {CFOPS_SAIDA.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.codigo} — {c.descricao}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, cfop_padrao: value }))}
+                    options={opcoesCfop}
+                    placeholder="— Não definido —"
+                    showThumbnails={false}
+                  />
                 </div>
               </div>
 
@@ -658,76 +660,37 @@ export function FacaModal({
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     CST/CSOSN ICMS
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.cst_icms}
-                    onChange={(e) => setFiscal((f) => ({ ...f, cst_icms: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    <option value="">— Não definido —</option>
-                    <optgroup label="CST (Regime Normal)">
-                      {CST_ICMS.map((c) => (
-                        <option key={`cst-${c.codigo}`} value={c.codigo}>
-                          {c.codigo} — {c.descricao}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="CSOSN (Simples Nacional)">
-                      {CSOSN_ICMS.map((c) => (
-                        <option key={`csosn-${c.codigo}`} value={c.codigo}>
-                          {c.codigo} — {c.descricao}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, cst_icms: value }))}
+                    options={opcoesCstIcms}
+                    placeholder="— Não definido —"
+                    showThumbnails={false}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     CST PIS
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.cst_pis}
-                    onChange={(e) => setFiscal((f) => ({ ...f, cst_pis: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    <option value="">— Não definido —</option>
-                    {CST_PIS_COFINS.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.codigo} — {c.descricao}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, cst_pis: value }))}
+                    options={opcoesCstPisCofins}
+                    placeholder="— Não definido —"
+                    showThumbnails={false}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     CST COFINS
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.cst_cofins}
-                    onChange={(e) => setFiscal((f) => ({ ...f, cst_cofins: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    <option value="">— Não definido —</option>
-                    {CST_PIS_COFINS.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.codigo} — {c.descricao}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, cst_cofins: value }))}
+                    options={opcoesCstPisCofins}
+                    placeholder="— Não definido —"
+                    showThumbnails={false}
+                  />
                 </div>
               </div>
 
@@ -736,43 +699,23 @@ export function FacaModal({
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     Origem
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.origem}
-                    onChange={(e) => setFiscal((f) => ({ ...f, origem: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    {ORIGENS_MERCADORIA.map((o) => (
-                      <option key={o.codigo} value={o.codigo}>
-                        {o.codigo} — {o.descricao}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, origem: value }))}
+                    options={opcoesOrigem}
+                    showThumbnails={false}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
                     Unidade
                   </label>
-                  <select
+                  <SmartSelect
                     value={fiscal.unidade}
-                    onChange={(e) => setFiscal((f) => ({ ...f, unidade: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none"
-                    style={{
-                      background: "var(--ac-card)",
-                      border: "1px solid var(--ac-border)",
-                      color: "var(--ac-text)",
-                    }}
-                  >
-                    {UNIDADES_MEDIDA.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFiscal((f) => ({ ...f, unidade: value }))}
+                    options={opcoesUnidade}
+                    showThumbnails={false}
+                  />
                 </div>
                 <Input
                   id="faca-ean"

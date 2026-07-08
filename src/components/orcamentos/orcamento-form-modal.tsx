@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useMemo, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { SmartSelect } from "@/components/ui/smart-select";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 import { criarOrcamento, atualizarOrcamento } from "@/lib/actions/orcamentos";
 import type { Orcamento, Cliente, Faca, OrcamentoItem } from "@/types";
@@ -132,6 +133,23 @@ export function OrcamentoFormModal({
           : null,
       })),
     [facas],
+  );
+  const opcoesCliente = useMemo(
+    () =>
+      clientes.map((cliente) => ({
+        value: cliente.id,
+        label: cliente.nome,
+        searchText: `${cliente.nome} ${cliente.cidade ?? ""} ${cliente.estado ?? ""}`,
+      })),
+    [clientes],
+  );
+  const opcoesVendedor = useMemo(
+    () =>
+      usuarios.map((usuario) => ({
+        value: usuario.id,
+        label: usuario.nome,
+      })),
+    [usuarios],
   );
 
   useEffect(() => {
@@ -304,19 +322,6 @@ export function OrcamentoFormModal({
     }
   }
 
-  const selectStyle: React.CSSProperties = {
-    background: "var(--ac-card)",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--ac-border)",
-    color: "var(--ac-text)",
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%236b7280' stroke-width='2' d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 8px center",
-    backgroundSize: "16px",
-    paddingRight: "32px",
-  };
-
   /** Só borda em forma longa — evita conflito com onFocus que altera `borderColor` (warning do React). */
   const inputStyle: React.CSSProperties = {
     background: "var(--ac-card)",
@@ -368,21 +373,13 @@ export function OrcamentoFormModal({
                 Gerenciar clientes
               </Link>
             </div>
-            <select
+            <SmartSelect
               value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
-              className="px-3 py-2.5 rounded-lg text-sm outline-none appearance-none"
-              style={selectStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--ac-accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--ac-border)")}
-            >
-              <option value="">— Sem cliente —</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
+              onChange={setClienteId}
+              options={opcoesCliente}
+              placeholder="— Sem cliente —"
+              showThumbnails={false}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label
@@ -391,21 +388,13 @@ export function OrcamentoFormModal({
             >
               Vendedor
             </label>
-            <select
+            <SmartSelect
               value={vendedorId}
-              onChange={(e) => setVendedorId(e.target.value)}
-              className="px-3 py-2.5 rounded-lg text-sm outline-none appearance-none"
-              style={selectStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--ac-accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--ac-border)")}
-            >
-              <option value="">— Sem vendedor —</option>
-              {usuarios.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nome}
-                </option>
-              ))}
-            </select>
+              onChange={setVendedorId}
+              options={opcoesVendedor}
+              placeholder="— Sem vendedor —"
+              showThumbnails={false}
+            />
           </div>
         </div>
 

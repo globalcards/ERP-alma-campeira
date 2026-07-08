@@ -19,7 +19,9 @@ import type {
   FilaReposicaoItem,
   FilaReposicaoPedidoItem,
   StatusOC,
+  TipoMaterial,
 } from '@/types'
+import { labelTipoMaterial, normalizarTipoMaterial } from '@/lib/materiais/tipos'
 
 async function revalidateOCLists(opts: { estoque?: boolean } = {}) {
   try {
@@ -35,7 +37,8 @@ async function revalidateOCLists(opts: { estoque?: boolean } = {}) {
 }
 
 const STATUS_OC_VALIDOS: readonly StatusOC[] = ['pendente', 'enviada', 'recebida']
-const ERRO_CATEGORIA_MISTURADA = 'Uma ordem de compra não pode misturar matérias-primas de categorias diferentes.'
+const ERRO_TIPO_MATERIAL_MISTURADO =
+  'Uma ordem de compra não pode misturar matérias-primas de tipos diferentes.'
 
 function normalizarCategoriaOC(categoria: string | null | undefined): string {
   return (categoria ?? '').trim()
@@ -46,17 +49,19 @@ function nomeCategoriaOC(categoria: string | null | undefined): string {
   return nome || 'Sem categoria'
 }
 
-function validarCategoriasUnicasOC(categorias: Iterable<string | null | undefined>): string {
-  const unicas = new Set<string>()
-  for (const categoria of categorias) {
-    unicas.add(normalizarCategoriaOC(categoria))
+function validarTiposMateriaisUnicosOC(
+  tiposMateriais: Iterable<TipoMaterial | string | null | undefined>,
+): TipoMaterial {
+  const unicos = new Set<TipoMaterial>()
+  for (const tipoMaterial of tiposMateriais) {
+    unicos.add(normalizarTipoMaterial(tipoMaterial))
   }
 
-  if (unicas.size > 1) {
-    throw new Error(ERRO_CATEGORIA_MISTURADA)
+  if (unicos.size > 1) {
+    throw new Error(ERRO_TIPO_MATERIAL_MISTURADO)
   }
 
-  return unicas.values().next().value ?? ''
+  return unicos.values().next().value ?? 'outro'
 }
 
 function normalizarStatusEPago(row: { status?: unknown; pago?: unknown }): { status: StatusOC; pago: boolean } {
@@ -142,18 +147,18 @@ async function marcarUltimaAlteracaoOC(ordemCompraId: string, usuarioId: string)
   await revalidateOCLists()
 }
 
-async function getCategoriaEfetivaOC(ordemCompraId: string): Promise<string | null> {
+async function getTipoMaterialEfetivoOC(ordemCompraId: string): Promise<TipoMaterial | null> {
   const itens = await prisma.ordemCompraItem.findMany({
     where: { ordemCompraId },
     select: {
       materiaPrima: {
-        select: { categoria: true },
+        select: { tipoMaterial: true },
       },
     },
   })
 
   if (itens.length === 0) return null
-  return validarCategoriasUnicasOC(itens.map((item) => item.materiaPrima?.categoria))
+  return validarTiposMateriaisUnicosOC(itens.map((item) => item.materiaPrima?.tipoMaterial))
 }
 
 async function nextSequencialFornecedor(
@@ -261,6 +266,7 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
                           id: true,
                           codigo: true,
                           categoria: true,
+                          tipoMaterial: true,
                           nome: true,
                           estoqueAtual: true,
                           estoqueMinimo: true,
@@ -332,6 +338,7 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
     mp_nome: row.materiaPrima.nome,
     mp_codigo: row.materiaPrima.codigo,
     categoria: row.materiaPrima.categoria,
+    tipo_material: row.materiaPrima.tipoMaterial,
     mp_preco_custo: numberFrom(row.materiaPrima.precoCusto),
     fornecedor_id: row.materiaPrima.fornecedorId ?? null,
     fornecedor_nome: row.materiaPrima.fornecedor?.nome ?? null,
@@ -421,7 +428,7 @@ export type CriarOcItemManual = {
 
 export async function criarOrdemCompraManual(input: {
   fornecedor_id: string | null
-  categoria: string | null
+  tipo_material: TipoMaterial | null
   desconto_percentual?: number | null
   observacao?: string | null
   itens: CriarOcItemManual[]
@@ -430,22 +437,24 @@ export async function criarOrdemCompraManual(input: {
 
   const linhas = input.itens?.filter((i) => i.materia_prima_id) ?? []
   if (linhas.length === 0) throw new Error('Adicione ao menos um item com matéria-prima.')
-  const categoriaSelecionada = normalizarCategoriaOC(input.categoria)
-  if (!categoriaSelecionada) throw new Error('Selecione a categoria da ordem de compra.')
+  const tipoMaterialSelecionado = input.tipo_material
+    ? normalizarTipoMaterial(input.tipo_material)
+    : null
+  if (!tipoMaterialSelecionado) throw new Error('Selecione o tipo de material da ordem de compra.')
 
   const mpIds = [...new Set(linhas.map((i) => i.materia_prima_id))]
   const mps = await prisma.materiaPrima.findMany({
     where: { id: { in: mpIds } },
-    select: { id: true, precoCusto: true, categoria: true },
+    select: { id: true, precoCusto: true, categoria: true, tipoMaterial: true },
   })
 
   if (mps.length !== mpIds.length) {
     throw new Error('Uma ou mais matérias-primas não foram encontradas.')
   }
 
-  const categoriaItens = validarCategoriasUnicasOC(mps.map((mp) => mp.categoria))
-  if (categoriaItens !== categoriaSelecionada) {
-    throw new Error(ERRO_CATEGORIA_MISTURADA)
+  const tipoMaterialItens = validarTiposMateriaisUnicosOC(mps.map((mp) => mp.tipoMaterial))
+  if (tipoMaterialItens !== tipoMaterialSelecionado) {
+    throw new Error(ERRO_TIPO_MATERIAL_MISTURADO)
   }
   const descontoPercentual = normalizarPercentualDesconto(Number(input.desconto_percentual ?? 0))
 
@@ -592,15 +601,17 @@ export async function criarItemOrdemCompra(
   const uid = await resolverUsuarioRegistroOC(usuarioRegistroId)
   const mp = await prisma.materiaPrima.findUnique({
     where: { id: materia_prima_id },
-    select: { precoCusto: true, categoria: true },
+    select: { precoCusto: true, categoria: true, tipoMaterial: true },
   })
 
   if (!mp) throw new Error('Matéria-prima não encontrada.')
 
-  const categoriaAtualOC = await getCategoriaEfetivaOC(ordem_compra_id)
-  const categoriaNova = normalizarCategoriaOC(mp.categoria)
-  if (categoriaAtualOC && categoriaAtualOC !== categoriaNova) {
-    throw new Error(`Esta ordem de compra aceita apenas itens da categoria "${nomeCategoriaOC(categoriaAtualOC)}".`)
+  const tipoMaterialAtualOC = await getTipoMaterialEfetivoOC(ordem_compra_id)
+  const tipoMaterialNovo = normalizarTipoMaterial(mp.tipoMaterial)
+  if (tipoMaterialAtualOC && tipoMaterialAtualOC !== tipoMaterialNovo) {
+    throw new Error(
+      `Esta ordem de compra aceita apenas itens do tipo "${labelTipoMaterial(tipoMaterialAtualOC)}".`,
+    )
   }
 
   await prisma.ordemCompraItem.create({

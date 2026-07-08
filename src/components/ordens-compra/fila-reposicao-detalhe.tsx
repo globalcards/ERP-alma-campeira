@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { labelTipoMaterial } from '@/lib/materiais/tipos'
 import {
   getFilaReposicaoDetalhe,
   atualizarItemFila,
@@ -182,21 +183,21 @@ export function FilaReposicaoDetalheModal({
     return s + i.mp_preco_custo * totalCompradoLocal(i)
   }, 0)
 
-  // Agrupa por categoria + fornecedor na mesma ordem do backend. Assim o modal
+  // Agrupa por tipo de material + fornecedor na mesma ordem do backend. Assim o modal
   // espelha exatamente quantas OCs sairão e como ficarão divididas.
   const grupos = useMemo(() => {
     const map = new Map<
       string,
-      { key: string; categoria: string; fornecedorNome: string; itens: FilaReposicaoItem[] }
+      { key: string; tipoLabel: string; fornecedorNome: string; itens: FilaReposicaoItem[] }
     >()
     for (const item of itens) {
-      const categoria = item.categoria?.trim() || 'Sem categoria'
+      const tipoLabel = labelTipoMaterial(item.tipo_material)
       const fornecedorKey = item.fornecedor_id ?? '__sem_fornecedor__'
-      const key = `${categoria}::${fornecedorKey}`
+      const key = `${item.tipo_material}::${fornecedorKey}`
       const nome = item.fornecedor_nome ?? 'Sem fornecedor'
       const grupo = map.get(key)
       if (grupo) grupo.itens.push(item)
-      else map.set(key, { key, categoria, fornecedorNome: nome, itens: [item] })
+      else map.set(key, { key, tipoLabel, fornecedorNome: nome, itens: [item] })
     }
     return Array.from(map.values())
   }, [itens])
@@ -394,7 +395,7 @@ export function FilaReposicaoDetalheModal({
                             {geraOC ? `OC ${grupoIdx + 1}` : 'Sem OC'}
                           </span>
                           <span className="text-sm font-semibold" style={{ color: 'var(--ac-text)' }}>
-                            {grupo.categoria}
+                            {grupo.tipoLabel}
                           </span>
                           <span className="text-xs" style={{ color: 'var(--ac-muted)' }}>
                             · {grupo.fornecedorNome}

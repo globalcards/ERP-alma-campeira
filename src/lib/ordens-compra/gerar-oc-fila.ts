@@ -22,7 +22,7 @@ async function nextSequencialFornecedor(
 
 /**
  * Gera OCs a partir dos itens selecionados de uma entrada da fila de reposição.
- * Agrupa os itens por categoria e fornecedor, garantindo categoria única por OC.
+ * Agrupa os itens por tipo de material e fornecedor, garantindo tipo único por OC.
  * Ao final, marca a fila como 'convertida'.
  */
 export async function gerarOCsDeFilaItens(
@@ -58,7 +58,7 @@ export async function gerarOCsDeFilaItens(
         materiaPrima: {
           select: {
             id: true,
-            categoria: true,
+            tipoMaterial: true,
             precoCusto: true,
             fornecedorId: true,
           },
@@ -68,8 +68,8 @@ export async function gerarOCsDeFilaItens(
 
     if (itens.length === 0) throw new Error('Nenhum item selecionado para gerar OC.')
 
-    type GrupoCategoriaFornecedor = {
-      categoria: string
+    type GrupoTipoFornecedor = {
+      tipoMaterial: string
       fornecedorId: string | null
       itens: Array<{
         materiaPrimaId: string
@@ -78,7 +78,7 @@ export async function gerarOCsDeFilaItens(
       }>
     }
 
-    const grupos = new Map<string, GrupoCategoriaFornecedor>()
+    const grupos = new Map<string, GrupoTipoFornecedor>()
 
     for (const item of itens) {
       const mp = item.materiaPrima
@@ -87,11 +87,11 @@ export async function gerarOCsDeFilaItens(
       const quantidade = item.quantidadeSugerida.add(item.quantidadeAdicional)
       if (quantidade.lte(0)) continue
 
-      const categoria = (mp.categoria ?? '').trim()
+      const tipoMaterial = (mp.tipoMaterial ?? 'outro').trim()
       const fornecedorKey = mp.fornecedorId ?? '__sem_fornecedor__'
-      const chave = `${categoria}::${fornecedorKey}`
+      const chave = `${tipoMaterial}::${fornecedorKey}`
       const grupo = grupos.get(chave) ?? {
-        categoria,
+        tipoMaterial,
         fornecedorId: mp.fornecedorId,
         itens: [],
       }

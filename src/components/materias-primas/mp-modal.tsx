@@ -9,7 +9,7 @@ import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
+import { SmartSelect } from "@/components/ui/smart-select";
 import type {
   CategoriaMateriaPrimaDB,
   Fornecedor,
@@ -59,18 +59,140 @@ type BulkRow = {
   preco_custo: string;
   estoque_atual: string;
   estoque_minimo: string;
+  lamina_aco: string;
+  lamina_carimbo: string;
+  cabo_tipo: string;
+  cabo_cor: string;
+  bainha_polegadas: string;
+  bainha_modelo: string;
+  bainha_botao: string;
 };
 
 type BulkField = Exclude<keyof BulkRow, "id">;
 
-const BULK_COLUMNS: BulkField[] = [
-  "sku",
-  "nome",
-  "categoria",
-  "fornecedor",
-  "preco_custo",
-  "estoque_atual",
-  "estoque_minimo",
+type BulkColumn = {
+  field: BulkField;
+  label: string;
+  placeholder: string;
+  kind: "input" | "select";
+  inputMode?: "decimal";
+  listId?: string;
+  optionType?: "aco" | "carimbo" | "cabo" | "bainha" | "botao";
+  minWidth?: number;
+};
+
+const BULK_BASE_COLUMNS: BulkColumn[] = [
+  { field: "sku", label: "SKU *", placeholder: "SKU", kind: "input", minWidth: 132 },
+  {
+    field: "nome",
+    label: "Nome *",
+    placeholder: "Nome da matéria-prima",
+    kind: "input",
+    minWidth: 220,
+  },
+  {
+    field: "categoria",
+    label: "Categoria *",
+    placeholder: "Categoria",
+    kind: "input",
+    listId: "mp-bulk-categorias",
+    minWidth: 150,
+  },
+  {
+    field: "fornecedor",
+    label: "Fornecedor",
+    placeholder: "Fornecedor",
+    kind: "input",
+    listId: "mp-bulk-fornecedores",
+    minWidth: 170,
+  },
+  {
+    field: "preco_custo",
+    label: "Preço de Custo *",
+    placeholder: "0",
+    kind: "input",
+    inputMode: "decimal",
+    minWidth: 148,
+  },
+  {
+    field: "estoque_atual",
+    label: "Estoque Atual",
+    placeholder: "0",
+    kind: "input",
+    inputMode: "decimal",
+    minWidth: 140,
+  },
+  {
+    field: "estoque_minimo",
+    label: "Estoque Mínimo",
+    placeholder: "0",
+    kind: "input",
+    inputMode: "decimal",
+    minWidth: 148,
+  },
+];
+
+const BULK_LAMINA_COLUMNS: BulkColumn[] = [
+  {
+    field: "lamina_aco",
+    label: "Aço",
+    placeholder: "Selecione um aço",
+    kind: "select",
+    optionType: "aco",
+    minWidth: 170,
+  },
+  {
+    field: "lamina_carimbo",
+    label: "Carimbo",
+    placeholder: "Selecione um carimbo",
+    kind: "select",
+    optionType: "carimbo",
+    minWidth: 170,
+  },
+];
+
+const BULK_CABO_COLUMNS: BulkColumn[] = [
+  {
+    field: "cabo_tipo",
+    label: "Tipo",
+    placeholder: "Selecione um tipo",
+    kind: "select",
+    optionType: "cabo",
+    minWidth: 170,
+  },
+  {
+    field: "cabo_cor",
+    label: "Cor",
+    placeholder: "Cor",
+    kind: "input",
+    minWidth: 150,
+  },
+];
+
+const BULK_BAINHA_COLUMNS: BulkColumn[] = [
+  {
+    field: "bainha_polegadas",
+    label: "Polegadas",
+    placeholder: 'Ex: 8"',
+    kind: "input",
+    minWidth: 120,
+  },
+  {
+    field: "bainha_modelo",
+    label: "Modelo",
+    placeholder: "Selecione um modelo",
+    kind: "select",
+    optionType: "bainha",
+    minWidth: 180,
+  },
+  {
+    field: "bainha_botao",
+    label: "Botão",
+    placeholder: "Selecione um botão",
+    kind: "select",
+    optionType: "botao",
+    minWidth: 170,
+  },
 ];
 
 const BULK_ROWS_STEP = 5;
@@ -161,23 +283,30 @@ function getOpcoesSelect(
   currentValue: string,
 ) {
   const value = currentValue.trim();
-  if (!value) return options.filter((item) => item.ativo);
+  if (!value) {
+    return options
+      .filter((item) => item.ativo)
+      .map((item) => ({ value: item.nome, label: item.nome }));
+  }
 
   const currentOption = options.find((item) => item.nome === value);
   if (currentOption) {
-    return options.filter((item) => item.ativo || item.nome === value);
+    return options
+      .filter((item) => item.ativo || item.nome === value)
+      .map((item) => ({
+        value: item.nome,
+        label: `${item.nome}${!item.ativo ? " (inativo)" : ""}`,
+        searchText: item.nome,
+      }));
   }
 
   return [
     {
-      id: `legacy-${value}`,
-      nome: value,
-      ativo: false,
-      ordem: Number.MAX_SAFE_INTEGER,
-      tipo: options[0]?.tipo ?? "aco",
-      created_at: "",
+      value,
+      label: `${value} (inativo)`,
+      searchText: value,
     },
-    ...options.filter((item) => item.ativo),
+    ...options.filter((item) => item.ativo).map((item) => ({ value: item.nome, label: item.nome })),
   ];
 }
 
@@ -191,6 +320,13 @@ function createBulkRow(): BulkRow {
     preco_custo: "",
     estoque_atual: "",
     estoque_minimo: "",
+    lamina_aco: "",
+    lamina_carimbo: "",
+    cabo_tipo: "",
+    cabo_cor: "",
+    bainha_polegadas: "",
+    bainha_modelo: "",
+    bainha_botao: "",
   };
 }
 
@@ -248,7 +384,21 @@ function isBulkRowEmpty(row: BulkRow): boolean {
     row.estoque_atual,
     row.estoque_minimo,
     row.sku,
+    row.lamina_aco,
+    row.lamina_carimbo,
+    row.cabo_tipo,
+    row.cabo_cor,
+    row.bainha_polegadas,
+    row.bainha_modelo,
+    row.bainha_botao,
   ].every((value) => !value.trim());
+}
+
+function getBulkColumns(tipoMaterial: TipoMaterial): BulkColumn[] {
+  if (tipoMaterial === "lamina") return [...BULK_BASE_COLUMNS, ...BULK_LAMINA_COLUMNS];
+  if (tipoMaterial === "cabo") return [...BULK_BASE_COLUMNS, ...BULK_CABO_COLUMNS];
+  if (tipoMaterial === "bainha") return [...BULK_BASE_COLUMNS, ...BULK_BAINHA_COLUMNS];
+  return BULK_BASE_COLUMNS;
 }
 
 export function MPModal({
@@ -354,6 +504,7 @@ export function MPModal({
 
   function applyBulkPaste(startRowIndex: number, startColumnIndex: number, text: string): boolean {
     if (!isSpreadsheetPaste(text)) return false;
+    const activeColumns = getBulkColumns(tipoMaterialContext ?? form.tipo_material);
 
     const rowsFromClipboard = text
       .replace(/\r/g, "")
@@ -371,12 +522,12 @@ export function MPModal({
       rowsFromClipboard.forEach((rowText, rowOffset) => {
         const values = rowText.split("\t");
         values.forEach((value, colOffset) => {
-          const field = BULK_COLUMNS[startColumnIndex + colOffset];
-          if (!field) return;
+          const column = activeColumns[startColumnIndex + colOffset];
+          if (!column) return;
           const rowIndex = startRowIndex + rowOffset;
           nextRows[rowIndex] = {
             ...nextRows[rowIndex],
-            [field]: normalizeBulkCellValue(field, value),
+            [column.field]: normalizeBulkCellValue(column.field, value),
           };
         });
       });
@@ -408,6 +559,13 @@ export function MPModal({
       const precoText = row.preco_custo.trim();
       const estoqueAtualText = row.estoque_atual.trim();
       const estoqueMinimoText = row.estoque_minimo.trim();
+      const laminaAco = row.lamina_aco.trim();
+      const laminaCarimbo = row.lamina_carimbo.trim();
+      const caboTipo = row.cabo_tipo.trim();
+      const caboCor = row.cabo_cor.trim();
+      const bainhaPolegadas = row.bainha_polegadas.trim();
+      const bainhaModelo = row.bainha_modelo.trim();
+      const bainhaBotao = row.bainha_botao.trim();
 
       const missing: string[] = [];
       if (!sku) missing.push("sku");
@@ -461,6 +619,28 @@ export function MPModal({
           preco_custo: preco,
           estoque_atual: estoqueAtual,
           estoque_minimo: estoqueMinimo,
+          lamina:
+            tipoMaterialAtual === "lamina"
+              ? {
+                  aco: laminaAco || null,
+                  carimbo: laminaCarimbo || null,
+                }
+              : null,
+          cabo:
+            tipoMaterialAtual === "cabo"
+              ? {
+                  tipo: caboTipo || null,
+                  cor: caboCor || null,
+                }
+              : null,
+          bainha:
+            tipoMaterialAtual === "bainha"
+              ? {
+                  polegadas: bainhaPolegadas || null,
+                  modelo: bainhaModelo || null,
+                  botao: bainhaBotao || null,
+                }
+              : null,
         },
       ];
     });
@@ -566,6 +746,16 @@ export function MPModal({
     fontSize: 13,
     outline: "none",
   } as const;
+  const cellSelectStyle = {
+    ...cellInputStyle,
+    appearance: "none" as const,
+    backgroundImage:
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%236b7280' stroke-width='2' d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 10px center",
+    backgroundSize: "16px",
+    paddingRight: "36px",
+  } as const;
 
   const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
   const tipoMaterialMeta = getTipoMaterialMeta(tipoMaterialAtual);
@@ -577,10 +767,42 @@ export function MPModal({
   const opcoesCabo = getOpcoesSelect(opcoesMateriais.cabo, form.cabo_tipo);
   const opcoesBainha = getOpcoesSelect(opcoesMateriais.bainha, form.bainha_modelo);
   const opcoesBotao = getOpcoesSelect(opcoesMateriais.botao, form.bainha_botao);
+  const opcoesCategoria = categoriasMateriaPrima.map((cat) => ({
+    value: cat.nome,
+    label: cat.nome,
+  }));
+  const opcoesFornecedor = fornecedoresCompativeis.map((fornecedor) => ({
+    value: fornecedor.id,
+    label: fornecedor.nome,
+    searchText: `${fornecedor.nome} ${fornecedor.cidade ?? ""} ${fornecedor.uf ?? ""}`,
+  }));
   const tipoFixo = !!tipoMaterialContext;
+  const bulkColumns = getBulkColumns(tipoMaterialAtual);
+  const bulkTableMinWidth =
+    60 + bulkColumns.reduce((total, column) => total + (column.minWidth ?? 140), 0);
   const modalTitle = editando
     ? `Editar ${tipoMaterialMeta.singular.toLowerCase()} — ${editando.codigo}`
     : `Novo ${tipoMaterialMeta.singular.toLowerCase()}`;
+
+  function getBulkSelectOptions(
+    row: BulkRow,
+    column: BulkColumn,
+  ): ReturnType<typeof getOpcoesSelect> {
+    switch (column.optionType) {
+      case "aco":
+        return getOpcoesSelect(opcoesMateriais.aco, row.lamina_aco);
+      case "carimbo":
+        return getOpcoesSelect(opcoesMateriais.carimbo, row.lamina_carimbo);
+      case "cabo":
+        return getOpcoesSelect(opcoesMateriais.cabo, row.cabo_tipo);
+      case "bainha":
+        return getOpcoesSelect(opcoesMateriais.bainha, row.bainha_modelo);
+      case "botao":
+        return getOpcoesSelect(opcoesMateriais.botao, row.bainha_botao);
+      default:
+        return [];
+    }
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>
@@ -666,16 +888,17 @@ export function MPModal({
                 >
                   Tipo de material *
                 </label>
-                <Select
+                <SmartSelect
                   id="tipo_material"
                   value={form.tipo_material}
-                  onChange={(e) => setTipoMaterial(e.target.value as TipoMaterial)}
-                >
-                  <option value="lamina">Lâminas</option>
-                  <option value="cabo">Cabos</option>
-                  <option value="bainha">Bainhas</option>
-                  <option value="outro">Outros</option>
-                </Select>
+                  onChange={(value) => setTipoMaterial(value as TipoMaterial)}
+                  options={[
+                    { value: "lamina", label: "Lâminas" },
+                    { value: "cabo", label: "Cabos" },
+                    { value: "bainha", label: "Bainhas" },
+                    { value: "outro", label: "Outros" },
+                  ]}
+                />
               </div>
             )}
 
@@ -727,17 +950,12 @@ export function MPModal({
                   Gerenciar categorias
                 </Link>
               </div>
-              <Select
+              <SmartSelect
                 id="categoria"
                 value={form.categoria || categoriasMateriaPrima[0]?.nome || ""}
-                onChange={(e) => set("categoria", e.target.value)}
-              >
-                {categoriasMateriaPrima.map((cat) => (
-                  <option key={cat.id} value={cat.nome}>
-                    {cat.nome}
-                  </option>
-                ))}
-              </Select>
+                onChange={(value) => set("categoria", value)}
+                options={opcoesCategoria}
+              />
             </div>
 
             {tipoMaterialAtual === "lamina" && (
@@ -754,20 +972,15 @@ export function MPModal({
                   </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Select
+                  <SmartSelect
                     id="lamina_aco"
                     label="Aço"
                     value={form.lamina_aco}
-                    onChange={(e) => set("lamina_aco", e.target.value)}
-                  >
-                    <option value="">Selecione um aço</option>
-                    {opcoesAco.map((opcao) => (
-                      <option key={opcao.id} value={opcao.nome}>
-                        {opcao.nome}
-                        {!opcao.ativo ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => set("lamina_aco", value)}
+                    options={opcoesAco}
+                    placeholder="Selecione um aço"
+                    showThumbnails={false}
+                  />
                   {opcoesAco.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
@@ -779,20 +992,15 @@ export function MPModal({
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Select
+                  <SmartSelect
                     id="lamina_carimbo"
                     label="Carimbo"
                     value={form.lamina_carimbo}
-                    onChange={(e) => set("lamina_carimbo", e.target.value)}
-                  >
-                    <option value="">Selecione um carimbo</option>
-                    {opcoesCarimbo.map((opcao) => (
-                      <option key={opcao.id} value={opcao.nome}>
-                        {opcao.nome}
-                        {!opcao.ativo ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => set("lamina_carimbo", value)}
+                    options={opcoesCarimbo}
+                    placeholder="Selecione um carimbo"
+                    showThumbnails={false}
+                  />
                   {opcoesCarimbo.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
@@ -820,20 +1028,15 @@ export function MPModal({
                   </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Select
+                  <SmartSelect
                     id="cabo_tipo"
                     label="Tipo"
                     value={form.cabo_tipo}
-                    onChange={(e) => set("cabo_tipo", e.target.value)}
-                  >
-                    <option value="">Selecione um tipo de cabo</option>
-                    {opcoesCabo.map((opcao) => (
-                      <option key={opcao.id} value={opcao.nome}>
-                        {opcao.nome}
-                        {!opcao.ativo ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => set("cabo_tipo", value)}
+                    options={opcoesCabo}
+                    placeholder="Selecione um tipo de cabo"
+                    showThumbnails={false}
+                  />
                   {opcoesCabo.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
@@ -875,20 +1078,15 @@ export function MPModal({
                   onChange={(e) => set("bainha_polegadas", e.target.value)}
                 />
                 <div className="flex flex-col gap-1.5">
-                  <Select
+                  <SmartSelect
                     id="bainha_modelo"
                     label="Modelo"
                     value={form.bainha_modelo}
-                    onChange={(e) => set("bainha_modelo", e.target.value)}
-                  >
-                    <option value="">Selecione um modelo de bainha</option>
-                    {opcoesBainha.map((opcao) => (
-                      <option key={opcao.id} value={opcao.nome}>
-                        {opcao.nome}
-                        {!opcao.ativo ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => set("bainha_modelo", value)}
+                    options={opcoesBainha}
+                    placeholder="Selecione um modelo de bainha"
+                    showThumbnails={false}
+                  />
                   {opcoesBainha.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
@@ -900,20 +1098,15 @@ export function MPModal({
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Select
+                  <SmartSelect
                     id="bainha_botao"
                     label="Botão"
                     value={form.bainha_botao}
-                    onChange={(e) => set("bainha_botao", e.target.value)}
-                  >
-                    <option value="">Selecione um botão</option>
-                    {opcoesBotao.map((opcao) => (
-                      <option key={opcao.id} value={opcao.nome}>
-                        {opcao.nome}
-                        {!opcao.ativo ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => set("bainha_botao", value)}
+                    options={opcoesBotao}
+                    placeholder="Selecione um botão"
+                    showThumbnails={false}
+                  />
                   {opcoesBotao.length === 0 && (
                     <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                       Cadastre opções em{" "}
@@ -958,18 +1151,14 @@ export function MPModal({
                   Gerenciar fornecedores
                 </Link>
               </div>
-              <Select
+              <SmartSelect
                 id="fornecedor"
                 value={form.fornecedor_id}
-                onChange={(e) => set("fornecedor_id", e.target.value)}
-              >
-                <option value="">— Sem fornecedor —</option>
-                {fornecedoresCompativeis.map((fornecedor) => (
-                  <option key={fornecedor.id} value={fornecedor.id}>
-                    {fornecedor.nome}
-                  </option>
-                ))}
-              </Select>
+                onChange={(value) => set("fornecedor_id", value)}
+                options={opcoesFornecedor}
+                placeholder="— Sem fornecedor —"
+                showThumbnails={false}
+              />
               <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                 Mostra fornecedores compatíveis com{" "}
                 {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
@@ -1192,7 +1381,7 @@ export function MPModal({
               className="overflow-auto rounded-xl"
               style={{ border: "1px solid var(--ac-border)" }}
             >
-              <table className="w-full min-w-[940px] text-sm">
+              <table className="w-full text-sm" style={{ minWidth: bulkTableMinWidth }}>
                 <thead>
                   <tr
                     style={{
@@ -1206,48 +1395,15 @@ export function MPModal({
                     >
                       #
                     </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      SKU *
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Nome *
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Categoria *
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Fornecedor
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Preço de Custo *
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Estoque Atual
-                    </th>
-                    <th
-                      className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      Estoque Mínimo
-                    </th>
+                    {bulkColumns.map((column) => (
+                      <th
+                        key={column.field}
+                        className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: "var(--ac-muted)", minWidth: column.minWidth }}
+                      >
+                        {column.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -1265,42 +1421,39 @@ export function MPModal({
                       >
                         {rowIndex + 1}
                       </td>
-                      {BULK_COLUMNS.map((field, colIndex) => (
-                        <td key={field} className="px-2 py-2 align-top">
-                          <input
-                            value={row[field]}
-                            list={
-                              field === "categoria"
-                                ? "mp-bulk-categorias"
-                                : field === "fornecedor"
-                                  ? "mp-bulk-fornecedores"
-                                  : undefined
-                            }
-                            placeholder={
-                              field === "sku"
-                                ? "SKU"
-                                : field === "nome"
-                                  ? "Nome da matéria-prima"
-                                  : field === "categoria"
-                                    ? "Categoria"
-                                    : field === "fornecedor"
-                                      ? "Fornecedor"
-                                      : "0"
-                            }
-                            inputMode={
-                              field === "preco_custo" ||
-                              field === "estoque_atual" ||
-                              field === "estoque_minimo"
-                                ? "decimal"
-                                : undefined
-                            }
-                            onChange={(e) => setBulkCell(row.id, field, e.target.value)}
-                            onPaste={(e) => {
-                              const text = e.clipboardData.getData("text");
-                              if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
-                            }}
-                            style={cellInputStyle}
-                          />
+                      {bulkColumns.map((column, colIndex) => (
+                        <td key={column.field} className="px-2 py-2 align-top">
+                          {column.kind === "select" ? (
+                            <select
+                              value={row[column.field]}
+                              onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
+                              onPaste={(e) => {
+                                const text = e.clipboardData.getData("text");
+                                if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
+                              }}
+                              style={cellSelectStyle}
+                            >
+                              <option value="">{column.placeholder}</option>
+                              {getBulkSelectOptions(row, column).map((opcao) => (
+                                <option key={opcao.value} value={opcao.value}>
+                                  {opcao.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              value={row[column.field]}
+                              list={column.listId}
+                              placeholder={column.placeholder}
+                              inputMode={column.inputMode}
+                              onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
+                              onPaste={(e) => {
+                                const text = e.clipboardData.getData("text");
+                                if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
+                              }}
+                              style={cellInputStyle}
+                            />
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -1316,7 +1469,7 @@ export function MPModal({
             </datalist>
 
             <datalist id="mp-bulk-fornecedores">
-              {fornecedores.map((fornecedor) => (
+              {fornecedoresCompativeis.map((fornecedor) => (
                 <option key={fornecedor.id} value={fornecedor.nome} />
               ))}
             </datalist>

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import type { MateriaPrima } from "@/types";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
+import type { MateriaPrima, TipoMaterial } from "@/types";
 
 export type BomItemDraft = {
   materia_prima_id: string;
@@ -30,7 +31,7 @@ export function MPSelectorModal({
   existingItems,
   onConfirm,
 }: Props) {
-  const [categoriaAtual, setCategoriaAtual] = useState<string | null>(null);
+  const [grupoAtual, setGrupoAtual] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("nome");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selecoesTemporarias, setSelecoesTemporarias] = useState<Record<string, { quantidade: string }>>(
@@ -59,34 +60,52 @@ export function MPSelectorModal({
     [materiasPrimas],
   );
 
-  const categorias = useMemo(() => {
-    const counts = new Map<string, number>();
-    const novos = new Map<string, number>();
-    const existentes = new Map<string, number>();
+  const grupos = useMemo(() => {
+    type GrupoResumo = {
+      key: string;
+      tipo: TipoMaterial;
+      categoria: string;
+      titulo: string;
+      quantidade: number;
+      novasSelecionadas: number;
+      jaAdicionadas: number;
+    };
+
+    const counts = new Map<string, GrupoResumo>();
 
     for (const mp of materiasPrimasOrdenadas) {
-      counts.set(mp.categoria, (counts.get(mp.categoria) ?? 0) + 1);
-      if (existentesPorId.has(mp.id)) {
-        existentes.set(mp.categoria, (existentes.get(mp.categoria) ?? 0) + 1);
-      }
-      if (selecoesTemporarias[mp.id]) {
-        novos.set(mp.categoria, (novos.get(mp.categoria) ?? 0) + 1);
-      }
+      const categoria = mp.categoria.trim() || "Sem categoria";
+      const key = `${mp.tipo_material}::${categoria}`;
+      const atual = counts.get(key) ?? {
+        key,
+        tipo: mp.tipo_material,
+        categoria,
+        titulo: `${labelTipoMaterial(mp.tipo_material)} · ${categoria}`,
+        quantidade: 0,
+        novasSelecionadas: 0,
+        jaAdicionadas: 0,
+      };
+      atual.quantidade += 1;
+      if (existentesPorId.has(mp.id)) atual.jaAdicionadas += 1;
+      if (selecoesTemporarias[mp.id]) atual.novasSelecionadas += 1;
+      counts.set(key, atual);
     }
 
-    return Array.from(counts.entries())
-      .map(([nome, quantidade]) => ({
-        nome,
-        quantidade,
-        novasSelecionadas: novos.get(nome) ?? 0,
-        jaAdicionadas: existentes.get(nome) ?? 0,
-      }))
-      .sort((a, b) => compareText(a.nome, b.nome));
+    return Array.from(counts.values()).sort((a, b) => compareText(a.titulo, b.titulo));
   }, [existentesPorId, materiasPrimasOrdenadas, selecoesTemporarias]);
 
-  const itensDaCategoria = useMemo(() => {
-    if (!categoriaAtual) return [];
-    const itens = materiasPrimasOrdenadas.filter((mp) => mp.categoria === categoriaAtual);
+  const grupoAtualResumo = useMemo(
+    () => grupos.find((grupo) => grupo.key === grupoAtual) ?? null,
+    [grupos, grupoAtual],
+  );
+
+  const itensDoGrupo = useMemo(() => {
+    if (!grupoAtualResumo) return [];
+    const itens = materiasPrimasOrdenadas.filter(
+      (mp) =>
+        mp.tipo_material === grupoAtualResumo.tipo &&
+        (mp.categoria.trim() || "Sem categoria") === grupoAtualResumo.categoria,
+    );
     const sorted = [...itens].sort((a, b) => {
       let primary = 0;
       switch (sortField) {
@@ -110,7 +129,7 @@ export function MPSelectorModal({
       return compareText(a.codigo, b.codigo);
     });
     return sorted;
-  }, [categoriaAtual, materiasPrimasOrdenadas, sortDirection, sortField]);
+  }, [grupoAtualResumo, materiasPrimasOrdenadas, sortDirection, sortField]);
 
   const totalNovosSelecionados = Object.keys(selecoesTemporarias).length;
 
@@ -181,7 +200,7 @@ export function MPSelectorModal({
         >
           <div>
             <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
-              {categoriaAtual ? categoriaAtual : "Escolha uma categoria"}
+              {grupoAtualResumo ? grupoAtualResumo.titulo : "Escolha um grupo"}
             </p>
             <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
               {totalNovosSelecionados === 0
@@ -190,9 +209,9 @@ export function MPSelectorModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {categoriaAtual ? (
-              <Button type="button" variant="secondary" onClick={() => setCategoriaAtual(null)}>
-                Voltar para categorias
+            {grupoAtualResumo ? (
+              <Button type="button" variant="secondary" onClick={() => setGrupoAtual(null)}>
+                Voltar para grupos
               </Button>
             ) : null}
             <Button
@@ -205,8 +224,8 @@ export function MPSelectorModal({
           </div>
         </div>
 
-        {!categoriaAtual ? (
-          categorias.length === 0 ? (
+        {!grupoAtualResumo ? (
+          grupos.length === 0 ? (
             <div
               className="rounded-xl px-4 py-8 text-center text-sm"
               style={{
@@ -219,11 +238,11 @@ export function MPSelectorModal({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {categorias.map((categoria) => (
+              {grupos.map((grupo) => (
                 <button
-                  key={categoria.nome}
+                  key={grupo.key}
                   type="button"
-                  onClick={() => setCategoriaAtual(categoria.nome)}
+                  onClick={() => setGrupoAtual(grupo.key)}
                   className="rounded-xl p-4 text-left transition-all"
                   style={{
                     border: "1px solid var(--ac-border)",
@@ -242,9 +261,9 @@ export function MPSelectorModal({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold">{categoria.nome}</p>
+                      <p className="text-sm font-semibold">{grupo.titulo}</p>
                       <p className="text-xs mt-1" style={{ color: "var(--ac-muted)" }}>
-                        {categoria.quantidade} item(ns) nesta categoria
+                        {grupo.quantidade} item(ns) neste grupo
                       </p>
                     </div>
                     <span
@@ -257,9 +276,9 @@ export function MPSelectorModal({
                       Abrir
                     </span>
                   </div>
-                  {(categoria.novasSelecionadas > 0 || categoria.jaAdicionadas > 0) && (
+                  {(grupo.novasSelecionadas > 0 || grupo.jaAdicionadas > 0) && (
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      {categoria.novasSelecionadas > 0 ? (
+                      {grupo.novasSelecionadas > 0 ? (
                         <span
                           className="rounded-full px-2 py-1"
                           style={{
@@ -267,10 +286,10 @@ export function MPSelectorModal({
                             background: "#e0f2fe",
                           }}
                         >
-                          {categoria.novasSelecionadas} nova(s) marcada(s)
+                          {grupo.novasSelecionadas} nova(s) marcada(s)
                         </span>
                       ) : null}
-                      {categoria.jaAdicionadas > 0 ? (
+                      {grupo.jaAdicionadas > 0 ? (
                         <span
                           className="rounded-full px-2 py-1"
                           style={{
@@ -279,7 +298,7 @@ export function MPSelectorModal({
                             border: "1px solid var(--ac-border)",
                           }}
                         >
-                          {categoria.jaAdicionadas} ja adicionada(s)
+                          {grupo.jaAdicionadas} ja adicionada(s)
                         </span>
                       ) : null}
                     </div>
@@ -360,18 +379,18 @@ export function MPSelectorModal({
                 </tr>
               </thead>
               <tbody>
-                {itensDaCategoria.length === 0 ? (
+                {itensDoGrupo.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
                       className="px-4 py-8 text-center text-sm"
                       style={{ color: "var(--ac-muted)" }}
                     >
-                      Nenhuma matéria-prima encontrada nesta categoria.
+                      Nenhuma matéria-prima encontrada neste grupo.
                     </td>
                   </tr>
                 ) : (
-                  itensDaCategoria.map((mp, index) => {
+                  itensDoGrupo.map((mp, index) => {
                     const itemExistente = existentesPorId.get(mp.id);
                     const itemNovo = selecoesTemporarias[mp.id];
                     const checked = Boolean(itemExistente || itemNovo);

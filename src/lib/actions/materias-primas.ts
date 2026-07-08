@@ -25,7 +25,7 @@ import type {
 } from "@/types";
 import { gerarCodigoForte } from "@/lib/utils/codigo";
 import { withTiming } from "@/lib/perf/timing";
-import { obterTipoMaterialPadrao } from "@/lib/materiais/tipos";
+import { isTipoMaterial, normalizarTipoMaterial } from "@/lib/materiais/tipos";
 
 async function revalidateMPLists() {
   const userId = await requireAuthenticatedUserId();
@@ -278,7 +278,11 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   const sku = input.sku.trim();
   const nome = input.nome.trim();
   const categoria = input.categoria.trim();
-  const tipo_material = obterTipoMaterialPadrao(input.tipo_material, categoria);
+  const tipoRaw = typeof input.tipo_material === "string" ? input.tipo_material : "";
+  if (!isTipoMaterial(tipoRaw)) {
+    throw new Error(`${prefixo}tipo de material é obrigatório.`);
+  }
+  const tipo_material = normalizarTipoMaterial(tipoRaw);
   const preco_custo = Number(input.preco_custo);
   const estoque_atual = Number(input.estoque_atual || 0);
   const estoque_minimo = Number(input.estoque_minimo || 0);
@@ -521,19 +525,23 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.materiaPrima.createMany({
-        data: normalizedInputs.map((input, index) => ({
-          codigo: codigos[index],
-          sku: input.sku,
-          nome: input.nome,
-          categoria: input.categoria,
-          tipoMaterial: input.tipo_material,
-          fornecedorId: input.fornecedor_id,
-          precoCusto: decimal(input.preco_custo),
-          estoqueAtual: decimal(input.estoque_atual),
-          estoqueMinimo: decimal(input.estoque_minimo),
-        })),
-      });
+      for (const [index, input] of normalizedInputs.entries()) {
+        const created = await tx.materiaPrima.create({
+          data: {
+            codigo: codigos[index],
+            sku: input.sku,
+            nome: input.nome,
+            categoria: input.categoria,
+            tipoMaterial: input.tipo_material,
+            fornecedorId: input.fornecedor_id,
+            precoCusto: decimal(input.preco_custo),
+            estoqueAtual: decimal(input.estoque_atual),
+            estoqueMinimo: decimal(input.estoque_minimo),
+          },
+          select: { id: true },
+        });
+        await salvarDetalhesTipoMaterial(tx, created.id, input);
+      }
     });
   } catch (error) {
     throwFriendlyUniqueError(error);

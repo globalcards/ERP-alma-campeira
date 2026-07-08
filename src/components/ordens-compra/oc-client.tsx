@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
+import { SmartSelect } from "@/components/ui/smart-select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import {
   getFilaReposicaoList,
   getFilaReposicaoDetalhe,
@@ -16,7 +17,7 @@ import {
   deletarOC,
 } from "@/lib/actions/ordens-compra";
 import { getFornecedoresSemCache } from "@/lib/actions/fornecedores";
-import { STATUS_OC, FORMAS_PAGAMENTO_OC } from "@/types";
+import { STATUS_OC, FORMAS_PAGAMENTO_OC, TIPOS_MATERIAL } from "@/types";
 import type {
   FilaReposicao,
   FilaReposicaoDetalhe,
@@ -26,6 +27,7 @@ import type {
   OrdemCompraItem,
   StatusOC,
   FormaPagamentoOC,
+  TipoMaterial,
 } from "@/types";
 import { criarBoleto, type ParcelaInput } from "@/lib/actions/boletos";
 import { DateInputBR } from "@/components/ui/date-input-br";
@@ -940,26 +942,26 @@ function OcDetalheModal({
     () => new Set(itens.map((i) => i.materia_prima_id)),
     [itens],
   );
-  const categoriasOc = useMemo(
+  const tiposOc = useMemo(
     () =>
       Array.from(
         new Set(
           itens
-            .map((item) => item.materia_prima?.categoria?.trim() ?? "")
-            .filter((categoria) => categoria.length > 0),
+            .map((item) => item.materia_prima?.tipo_material ?? "")
+            .filter((tipoMaterial): tipoMaterial is TipoMaterial => Boolean(tipoMaterial)),
         ),
       ),
     [itens],
   );
-  const categoriaOcAtiva = categoriasOc.length === 1 ? categoriasOc[0] : null;
+  const tipoMaterialOcAtivo = tiposOc.length === 1 ? tiposOc[0] : null;
 
   const opcoesMateriaPrima = useMemo(
     () =>
       materiasPrimas
         .filter((mp) => !idsMateriaJaNoPedido.has(mp.id))
         .filter((mp) =>
-          categoriaOcAtiva
-            ? normalizarCategoria(mp.categoria) === normalizarCategoria(categoriaOcAtiva)
+          tipoMaterialOcAtivo
+            ? mp.tipo_material === tipoMaterialOcAtivo
             : true,
         )
         .map((mp) => {
@@ -975,16 +977,34 @@ function OcDetalheModal({
             value: mp.id,
             label: mp.nome,
             secondaryLabel: mp.sku,
-            searchText: `${mp.nome} ${mp.sku}`,
+            searchText: `${mp.nome} ${mp.sku} ${mp.categoria} ${labelTipoMaterial(mp.tipo_material)}`,
             imageUrl,
           };
         }),
-    [materiasPrimas, idsMateriaJaNoPedido, categoriaOcAtiva],
+    [materiasPrimas, idsMateriaJaNoPedido, tipoMaterialOcAtivo],
   );
 
   const opcoesUsuarioRegistro = useMemo(
     () => usuariosRegistro.map((u) => ({ value: u.id, label: u.nome })),
     [usuariosRegistro],
+  );
+  const opcoesStatusOc = useMemo(
+    () =>
+      (["pendente", "enviada", "recebida"] as StatusOC[]).map((status) => ({
+        value: status,
+        label: STATUS_OC[status].label,
+      })),
+    [],
+  );
+  const opcoesFormaPagamentoOc = useMemo(
+    () =>
+      (Object.entries(FORMAS_PAGAMENTO_OC) as [FormaPagamentoOC, { label: string }][]).map(
+        ([value, meta]) => ({
+          value,
+          label: meta.label,
+        }),
+      ),
+    [],
   );
 
   useEffect(() => {
@@ -1390,10 +1410,12 @@ function OcDetalheModal({
                 <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
                   Adicionar matéria-prima
                 </p>
-                {categoriaOcAtiva && (
+                {tipoMaterialOcAtivo && (
                   <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                    Categoria desta OC:{" "}
-                    <strong style={{ color: "var(--ac-text)" }}>{categoriaOcAtiva}</strong>
+                    Tipo desta OC:{" "}
+                    <strong style={{ color: "var(--ac-text)" }}>
+                      {labelTipoMaterial(tipoMaterialOcAtivo)}
+                    </strong>
                   </p>
                 )}
               </div>
@@ -1415,8 +1437,8 @@ function OcDetalheModal({
                   placeholder="Pesquisar por nome ou SKU…"
                   loading={carregandoMateriasPrimas}
                   emptyMessage={
-                    categoriaOcAtiva
-                      ? `Nenhuma matéria-prima disponível para a categoria ${categoriaOcAtiva}`
+                    tipoMaterialOcAtivo
+                      ? `Nenhuma matéria-prima disponível para o tipo ${labelTipoMaterial(tipoMaterialOcAtivo)}`
                       : "Nenhuma matéria-prima disponível para esta OC"
                   }
                 />
@@ -1592,25 +1614,15 @@ function OcDetalheModal({
                   >
                     Status
                   </label>
-                  <select
+                  <SmartSelect
                     id="oc-status-select"
                     value={statusDraft}
                     disabled={salvandoTudo}
-                    onChange={(e) => setStatusDraft(e.target.value as StatusOC)}
-                    className="text-sm rounded px-2 h-[34px]"
-                    style={{
-                      border: "1px solid var(--ac-border)",
-                      background: "var(--ac-card)",
-                      color: "var(--ac-text)",
-                      minWidth: 180,
-                    }}
-                  >
-                    {(["pendente", "enviada", "recebida"] as StatusOC[]).map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_OC[s].label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setStatusDraft(value as StatusOC)}
+                    options={opcoesStatusOc}
+                    showThumbnails={false}
+                    className="min-w-[180px]"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1">
@@ -1644,30 +1656,16 @@ function OcDetalheModal({
                   >
                     Forma de pagamento
                   </label>
-                  <select
+                  <SmartSelect
                     id="oc-forma-pagamento"
                     value={formaPagamentoDraft}
                     disabled={salvandoTudo}
-                    onChange={(e) =>
-                      setFormaPagamentoDraft(e.target.value as FormaPagamentoOC | "")
-                    }
-                    className="text-sm rounded px-2 h-[34px]"
-                    style={{
-                      border: "1px solid var(--ac-border)",
-                      background: "var(--ac-card)",
-                      color: "var(--ac-text)",
-                      minWidth: 180,
-                    }}
-                  >
-                    <option value="">— Selecione —</option>
-                    {(
-                      Object.entries(FORMAS_PAGAMENTO_OC) as [FormaPagamentoOC, { label: string }][]
-                    ).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormaPagamentoDraft(value as FormaPagamentoOC | "")}
+                    options={opcoesFormaPagamentoOc}
+                    placeholder="— Selecione —"
+                    showThumbnails={false}
+                    className="min-w-[180px]"
+                  />
                 </div>
               </div>
 
@@ -1939,6 +1937,7 @@ function OcCriarModal({
   onCriada: (codigo: string) => void;
 }) {
   const [fornecedorId, setFornecedorId] = useState("");
+  const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial | "">("");
   const [categoria, setCategoria] = useState("");
   const [descontoPercentual, setDescontoPercentual] = useState("0");
   const [observacao, setObservacao] = useState("");
@@ -1952,21 +1951,23 @@ function OcCriarModal({
   const [erro, setErro] = useState("");
 
   const mpById = useMemo(() => new Map(materiasPrimas.map((m) => [m.id, m])), [materiasPrimas]);
+  const materiasPrimasDoTipo = useMemo(
+    () => (tipoMaterial ? materiasPrimas.filter((mp) => mp.tipo_material === tipoMaterial) : []),
+    [materiasPrimas, tipoMaterial],
+  );
   const categoriasDisponiveis = useMemo(
     () =>
       Array.from(
-        new Set(materiasPrimas.map((mp) => mp.categoria.trim()).filter((nome) => nome.length > 0)),
+        new Set(materiasPrimasDoTipo.map((mp) => mp.categoria.trim()).filter((nome) => nome.length > 0)),
       ).sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [materiasPrimas],
+    [materiasPrimasDoTipo],
   );
   const materiasPrimasFiltradas = useMemo(
     () =>
-      categoria
-        ? materiasPrimas.filter(
-            (mp) => normalizarCategoria(mp.categoria) === normalizarCategoria(categoria),
-          )
-        : [],
-    [categoria, materiasPrimas],
+      materiasPrimasDoTipo.filter((mp) =>
+        categoria ? normalizarCategoria(mp.categoria) === normalizarCategoria(categoria) : true,
+      ),
+    [categoria, materiasPrimasDoTipo],
   );
   const possuiItensSelecionados = useMemo(
     () => linhas.some((linha) => linha.materia_prima_id),
@@ -1988,17 +1989,43 @@ function OcCriarModal({
           value: mp.id,
           label: mp.nome,
           secondaryLabel: mp.sku,
-          searchText: `${mp.nome} ${mp.sku}`,
+            searchText: `${mp.nome} ${mp.sku} ${mp.categoria} ${labelTipoMaterial(mp.tipo_material)}`,
           imageUrl,
         };
       }),
     [materiasPrimasFiltradas],
+  );
+  const opcoesTipoOc = useMemo(
+    () =>
+      TIPOS_MATERIAL.map((tipo) => ({
+        value: tipo.value,
+        label: tipo.label,
+      })),
+    [],
+  );
+  const opcoesCategoriaOc = useMemo(
+    () =>
+      categoriasDisponiveis.map((nomeCategoria) => ({
+        value: nomeCategoria,
+        label: nomeCategoria,
+      })),
+    [categoriasDisponiveis],
+  );
+  const opcoesFornecedorOc = useMemo(
+    () =>
+      fornecedores.map((fornecedor) => ({
+        value: fornecedor.id,
+        label: fornecedor.nome,
+        searchText: `${fornecedor.nome} ${fornecedor.cidade ?? ""} ${fornecedor.uf ?? ""}`,
+      })),
+    [fornecedores],
   );
 
   useEffect(() => {
     if (!open) return;
     setErro("");
     setFornecedorId("");
+    setTipoMaterial("");
     setCategoria("");
     setDescontoPercentual("0");
     setObservacao("");
@@ -2049,12 +2076,19 @@ function OcCriarModal({
     setLinhas((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)));
   }
 
-  function updateCategoria(nextCategoria: string) {
-    if (nextCategoria === categoria) return;
+  function updateTipoMaterial(nextTipo: string) {
+    if (nextTipo === tipoMaterial) return;
     if (possuiItensSelecionados) {
-      setErro("Remova os itens atuais antes de trocar a categoria da ordem de compra.");
+      setErro("Remova os itens atuais antes de trocar o tipo de material da ordem de compra.");
       return;
     }
+    setErro("");
+    setTipoMaterial((nextTipo as TipoMaterial) || "");
+    setCategoria("");
+  }
+
+  function updateCategoria(nextCategoria: string) {
+    if (nextCategoria === categoria) return;
     setErro("");
     setCategoria(nextCategoria);
   }
@@ -2074,8 +2108,8 @@ function OcCriarModal({
   }
 
   async function salvar() {
-    if (!categoria) {
-      setErro("Selecione a categoria da ordem de compra.");
+    if (!tipoMaterial) {
+      setErro("Selecione o tipo de material da ordem de compra.");
       return;
     }
     const itensValidos = linhas.filter((l) => l.materia_prima_id);
@@ -2118,7 +2152,7 @@ function OcCriarModal({
     try {
       const codigo = await criarOrdemCompraManual({
         fornecedor_id: fornecedorId || null,
-        categoria,
+        tipo_material: tipoMaterial,
         desconto_percentual: desconto,
         observacao: observacao.trim() || null,
         itens: payload,
@@ -2174,20 +2208,33 @@ function OcCriarModal({
             className="text-xs font-semibold uppercase tracking-wide"
             style={{ color: "var(--ac-muted)" }}
           >
+            Tipo de material
+          </label>
+          <SmartSelect
+            value={tipoMaterial}
+            onChange={updateTipoMaterial}
+            disabled={carregando}
+            options={opcoesTipoOc}
+            placeholder="Selecione o tipo"
+            showThumbnails={false}
+          />
+        </div>
+
+        <div className="space-y-1.5 shrink-0">
+          <label
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: "var(--ac-muted)" }}
+          >
             Categoria
           </label>
-          <Select
+          <SmartSelect
             value={categoria}
-            onChange={(e) => updateCategoria(e.target.value)}
-            disabled={carregando}
-          >
-            <option value="">Selecione a categoria</option>
-            {categoriasDisponiveis.map((nomeCategoria) => (
-              <option key={nomeCategoria} value={nomeCategoria}>
-                {nomeCategoria}
-              </option>
-            ))}
-          </Select>
+            onChange={updateCategoria}
+            disabled={carregando || !tipoMaterial}
+            options={opcoesCategoriaOc}
+            placeholder="Todas as categorias do tipo"
+            showThumbnails={false}
+          />
         </div>
 
         <div className="space-y-1.5 shrink-0">
@@ -2197,18 +2244,14 @@ function OcCriarModal({
           >
             Fornecedor
           </label>
-          <Select
+          <SmartSelect
             value={fornecedorId}
-            onChange={(e) => setFornecedorId(e.target.value)}
+            onChange={setFornecedorId}
             disabled={carregando}
-          >
-            <option value="">Sem fornecedor</option>
-            {fornecedores.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-              </option>
-            ))}
-          </Select>
+            options={opcoesFornecedorOc}
+            placeholder="Sem fornecedor"
+            showThumbnails={false}
+          />
         </div>
 
         <div className="space-y-1.5 shrink-0">
@@ -2238,13 +2281,15 @@ function OcCriarModal({
               className="text-xs font-semibold uppercase tracking-wide"
               style={{ color: "var(--ac-muted)" }}
             >
-              Itens {categoria ? `· ${categoria}` : ""}
+              Itens
+              {tipoMaterial ? ` · ${labelTipoMaterial(tipoMaterial)}` : ""}
+              {categoria ? ` · ${categoria}` : ""}
             </span>
             <Button
               type="button"
               variant="secondary"
               onClick={addLinha}
-              disabled={carregando || !categoria}
+              disabled={carregando || !tipoMaterial}
             >
               Adicionar linha
             </Button>
@@ -2283,13 +2328,15 @@ function OcCriarModal({
                         value={l.materia_prima_id}
                         onChange={(v) => updateLinha(l.key, { materia_prima_id: v })}
                         options={opcoesMateria}
-                        placeholder={categoria ? "Escolher…" : "Escolha a categoria primeiro"}
-                        disabled={carregando || !categoria}
+                        placeholder={tipoMaterial ? "Escolher…" : "Escolha o tipo primeiro"}
+                        disabled={carregando || !tipoMaterial}
                         loading={carregando}
                         emptyMessage={
-                          categoria
-                            ? `Nenhuma matéria-prima encontrada para ${categoria}`
-                            : "Escolha a categoria para carregar as matérias-primas"
+                          tipoMaterial
+                            ? categoria
+                              ? `Nenhuma matéria-prima encontrada para ${categoria}`
+                              : `Nenhuma matéria-prima encontrada para ${labelTipoMaterial(tipoMaterial)}`
+                            : "Escolha o tipo para carregar as matérias-primas"
                         }
                         className="w-full"
                       />

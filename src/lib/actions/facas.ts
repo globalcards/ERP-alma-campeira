@@ -112,6 +112,8 @@ function mapMateriaPrimaRow(row: {
   codigo: string;
   sku: string;
   nome: string;
+  categoria: string;
+  tipoMaterial: MateriaPrima["tipo_material"];
   precoCusto: Prisma.Decimal;
   estoqueAtual: Prisma.Decimal;
   estoqueMinimo: Prisma.Decimal;
@@ -124,8 +126,8 @@ function mapMateriaPrimaRow(row: {
     codigo: row.codigo,
     sku: row.sku,
     nome: row.nome,
-    categoria: "",
-    tipo_material: "outro",
+    categoria: row.categoria,
+    tipo_material: row.tipoMaterial,
     fornecedor_id: row.fornecedorId,
     foto_url: row.fotoUrl,
     preco_custo: numberFrom(row.precoCusto),
@@ -231,6 +233,8 @@ async function loadFacaBOM(facaId: string): Promise<FacaMateriaPrima[]> {
           codigo: true,
           sku: true,
           nome: true,
+          categoria: true,
+          tipoMaterial: true,
           precoCusto: true,
           estoqueAtual: true,
           estoqueMinimo: true,

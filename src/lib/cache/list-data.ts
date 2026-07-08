@@ -529,7 +529,9 @@ function ordensCompraCache(userId: string) {
           ultimaAlteracaoUsuario: { select: { id: true, nome: true } },
           itens: {
             include: {
-              materiaPrima: { select: { id: true, codigo: true, nome: true, categoria: true } },
+              materiaPrima: {
+                select: { id: true, codigo: true, nome: true, categoria: true, tipoMaterial: true },
+              },
             },
           },
           filaReposicao: {
@@ -586,6 +588,7 @@ function ordensCompraCache(userId: string) {
                   codigo: item.materiaPrima.codigo,
                   nome: item.materiaPrima.nome,
                   categoria: item.materiaPrima.categoria,
+                    tipo_material: item.materiaPrima.tipoMaterial,
                 }
               : undefined,
           })),
