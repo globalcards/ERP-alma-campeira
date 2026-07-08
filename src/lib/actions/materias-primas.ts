@@ -113,6 +113,10 @@ function throwFriendlyUniqueError(error: unknown): never {
   throw error;
 }
 
+function formatExistingMateriaPrima(existing: { codigo: string; nome: string }): string {
+  return `${existing.codigo} - ${existing.nome}`;
+}
+
 async function assertMateriaPrimaUnique(
   tx: Prisma.TransactionClient,
   input: NormalizedMPInput,
@@ -131,11 +135,13 @@ async function assertMateriaPrimaUnique(
           },
         },
       },
-      select: { id: true },
+      select: { id: true, codigo: true, nome: true },
     });
 
     if (existing) {
-      throw new Error(getMateriaPrimaUniqueErrorMessage(input));
+      throw new Error(
+        `${getMateriaPrimaUniqueErrorMessage(input)} Cadastro existente: ${formatExistingMateriaPrima(existing)}.`,
+      );
     }
 
     return;
@@ -147,11 +153,13 @@ async function assertMateriaPrimaUnique(
       tipoMaterial: input.tipo_material,
       sku: input.sku,
     },
-    select: { id: true },
+    select: { id: true, codigo: true, nome: true },
   });
 
   if (existing) {
-    throw new Error(getMateriaPrimaUniqueErrorMessage(input));
+    throw new Error(
+      `${getMateriaPrimaUniqueErrorMessage(input)} Cadastro existente: ${formatExistingMateriaPrima(existing)}.`,
+    );
   }
 }
 
@@ -563,7 +571,14 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
   try {
     await prisma.$transaction(async (tx) => {
       for (const [index, input] of normalizedInputs.entries()) {
-        await assertMateriaPrimaUnique(tx, input);
+        try {
+          await assertMateriaPrimaUnique(tx, input);
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`Linha ${index + 1}: ${error.message}`);
+          }
+          throw error;
+        }
         const created = await tx.materiaPrima.create({
           data: {
             codigo: codigos[index],

@@ -131,7 +131,7 @@ function getColunasEspecificasMaterial(
 
 function formatResumoMaterialOpcao(mp: OrdemCompraItem["materia_prima"] | MateriaPrima): string {
   if (!mp) return "—";
-  const base = [mp.sku ? `SKU: ${mp.sku}` : `Código: ${mp.codigo}`];
+  const base = [`SKU: ${mp.sku || "—"}`];
   const colunas = getColunasEspecificasMaterial(mp.tipo_material);
   for (const coluna of colunas) {
     const valor = coluna.value(mp);
@@ -606,7 +606,7 @@ function ocBodyHtml(
               : "Matéria-prima";
             return `
         <tr>
-          <td>${escapeHtml(item.materia_prima?.codigo ?? "—")}</td>
+          <td>${escapeHtml(item.materia_prima?.sku ?? "—")}</td>
           <td>
             <div class="item-name">${escapeHtml(item.materia_prima?.nome ?? "Item sem nome")}</div>
             <div class="item-meta">${escapeHtml(tipoMaterial)}</div>
@@ -711,7 +711,7 @@ function ocBodyHtml(
         <table>
           <thead>
             <tr>
-              <th class="col-code">Código</th>
+              <th class="col-code">SKU</th>
               <th class="col-item">Item</th>
               <th class="col-qty numeric">Qtd</th>
               ${
@@ -1146,13 +1146,15 @@ function OcDetalheModal({
       const vendido = Number(item.quantidade_vendida ?? item.quantidade ?? 0);
       const totalQty = parseNumero(raw);
       if (!Number.isFinite(totalQty)) {
-        setErro(`Quantidade total inválida em ${item.materia_prima?.codigo ?? "um item"}.`);
+        setErro(
+          `Quantidade total inválida em ${item.materia_prima?.sku ?? item.materia_prima?.nome ?? "um item"}.`,
+        );
         return;
       }
       const minTotal = vendido > 0 ? vendido : 1;
       if (totalQty < minTotal) {
         setErro(
-          `A quantidade total de ${item.materia_prima?.codigo ?? "um item"} não pode ser menor que ${fmtQtd(minTotal)}.`,
+          `A quantidade total de ${item.materia_prima?.sku ?? item.materia_prima?.nome ?? "um item"} não pode ser menor que ${fmtQtd(minTotal)}.`,
         );
         return;
       }
@@ -1320,7 +1322,7 @@ function OcDetalheModal({
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: "color-mix(in srgb, var(--ac-border) 40%, transparent)" }}>
-                {["Código", "Matéria-Prima"].map((h) => (
+                {["SKU", "Matéria-Prima"].map((h) => (
                   <th
                     key={h}
                     className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
@@ -1374,7 +1376,7 @@ function OcDetalheModal({
                       className="px-3 py-2.5 font-mono text-xs"
                       style={{ color: "var(--ac-muted)" }}
                     >
-                      {item.materia_prima?.codigo ?? "—"}
+                      {item.materia_prima?.sku ?? "—"}
                     </td>
                     <td className="px-3 py-2.5 font-medium" style={{ color: "var(--ac-text)" }}>
                       {item.materia_prima?.nome ?? "—"}
@@ -2293,7 +2295,7 @@ function OcCriarModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Nova ordem de compra" width="920px">
-      <div className="flex flex-col gap-4 max-h-[min(85vh,720px)]">
+      <div className="flex flex-col gap-4">
         {erro && (
           <p
             className="text-sm px-3 py-2 rounded-lg"
@@ -2379,7 +2381,7 @@ function OcCriarModal({
           />
         </div>
 
-        <div className="min-h-0 flex flex-col gap-2 flex-1">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span
               className="text-xs font-semibold uppercase tracking-wide"
@@ -2399,7 +2401,14 @@ function OcCriarModal({
             </Button>
           </div>
 
-          <div>
+          <div
+            className="min-h-0 overflow-auto rounded-lg"
+            style={{
+              maxHeight: "min(40vh, 360px)",
+              border: "1px solid var(--ac-border)",
+              background: "var(--ac-card)",
+            }}
+          >
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr style={{ background: "color-mix(in srgb, var(--ac-border) 40%, transparent)" }}>
@@ -2564,8 +2573,12 @@ function OcCriarModal({
         </div>
 
         <div
-          className="flex flex-wrap gap-2 justify-end pt-2 shrink-0"
-          style={{ borderTop: "1px solid var(--ac-border)" }}
+          className="sticky bottom-0 z-10 -mx-6 mt-2 flex flex-wrap gap-2 justify-end px-6 pt-3 pb-1 shrink-0"
+          style={{
+            borderTop: "1px solid var(--ac-border)",
+            background:
+              "linear-gradient(to top, var(--ac-card) 82%, color-mix(in srgb, var(--ac-card) 84%, transparent))",
+          }}
         >
           <Button variant="secondary" onClick={onClose} disabled={salvando}>
             Cancelar

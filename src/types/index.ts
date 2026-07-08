@@ -560,6 +560,7 @@ export type FilaReposicaoItem = {
   materia_prima_id: string;
   mp_nome: string;
   mp_codigo: string;
+  mp_sku: string;
   tipo_material: TipoMaterial;
   mp_preco_custo: number;
   fornecedor_id: string | null;
@@ -575,6 +576,7 @@ export type FilaReposicaoItem = {
 export type FilaReposicaoPedidoItemMp = {
   mp_id: string;
   mp_codigo: string;
+  mp_sku: string;
   mp_nome: string;
   /** Quantidade de MP consumida por 1 unidade da faca (BOM). */
   quantidade_por_faca: number;

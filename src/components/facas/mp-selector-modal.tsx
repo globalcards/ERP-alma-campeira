@@ -18,7 +18,7 @@ type Props = {
   onConfirm: (items: BomItemDraft[]) => void;
 };
 
-type SortField = "nome" | "codigo" | "estoque" | "preco_custo";
+type SortField = "nome" | "sku" | "estoque" | "preco_custo";
 type SortDirection = "asc" | "desc";
 
 function compareText(a: string, b: string): number {
@@ -73,8 +73,8 @@ export function MPSelectorModal({
       [...materiasPrimas].sort((a, b) => {
         const grupo = compareText(getGrupoNome(a), getGrupoNome(b));
         if (grupo !== 0) return grupo;
-        const codigo = compareText(a.codigo, b.codigo);
-        if (codigo !== 0) return codigo;
+        const sku = compareText(a.sku, b.sku);
+        if (sku !== 0) return sku;
         return compareText(a.nome, b.nome);
       }),
     [materiasPrimas],
@@ -133,8 +133,8 @@ export function MPSelectorModal({
         case "nome":
           primary = compareText(a.nome, b.nome);
           break;
-        case "codigo":
-          primary = compareText(a.codigo, b.codigo);
+        case "sku":
+          primary = compareText(a.sku, b.sku);
           break;
         case "estoque":
           primary = Number(a.estoque_atual) - Number(b.estoque_atual);
@@ -147,7 +147,7 @@ export function MPSelectorModal({
 
       const fallbackNome = compareText(a.nome, b.nome);
       if (fallbackNome !== 0) return fallbackNome;
-      return compareText(a.codigo, b.codigo);
+      return compareText(a.sku, b.sku);
     });
     return sorted;
   }, [grupoAtualResumo, materiasPrimasOrdenadas, sortDirection, sortField]);
@@ -342,13 +342,13 @@ export function MPSelectorModal({
                   <th className="px-4 py-3 text-left text-xs uppercase" style={{ color: "var(--ac-muted)" }}>
                     <button
                       type="button"
-                      onClick={() => toggleSort("codigo")}
+                      onClick={() => toggleSort("sku")}
                       className="inline-flex items-center gap-1 transition-colors"
-                      style={{ color: sortField === "codigo" ? "var(--ac-text)" : "inherit" }}
+                      style={{ color: sortField === "sku" ? "var(--ac-text)" : "inherit" }}
                     >
-                      <span>Codigo</span>
+                      <span>SKU</span>
                       <span aria-hidden="true" className="text-[11px] leading-none">
-                        {getSortIndicator("codigo")}
+                        {getSortIndicator("sku")}
                       </span>
                     </button>
                   </th>
@@ -448,13 +448,10 @@ export function MPSelectorModal({
                           </div>
                         </td>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--ac-muted)" }}>
-                          {mp.codigo}
+                          {mp.sku}
                         </td>
                         <td className="px-4 py-3" style={{ color: "var(--ac-text)" }}>
                           <div className="font-medium">{mp.nome}</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--ac-muted)" }}>
-                            SKU: {mp.sku}
-                          </div>
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums" style={{ color: "var(--ac-text)" }}>
                           {Number(mp.estoque_atual).toLocaleString("pt-BR")}

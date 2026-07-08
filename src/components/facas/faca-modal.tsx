@@ -202,7 +202,9 @@ export function FacaModal({
   function adicionarBomItens(itens: BomItemDraft[]) {
     setBomItens((prev) => {
       const existentes = new Set(prev.map((item) => item.materia_prima_id));
-      const novos = itens.filter((item) => item.materia_prima_id && !existentes.has(item.materia_prima_id));
+      const novos = itens.filter(
+        (item) => item.materia_prima_id && !existentes.has(item.materia_prima_id),
+      );
       return [...prev, ...novos];
     });
     setSelectorOpen(false);

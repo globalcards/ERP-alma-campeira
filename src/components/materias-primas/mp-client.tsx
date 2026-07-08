@@ -25,7 +25,7 @@ type Props = {
 };
 
 type ViewMode = "categorias" | "todos";
-type SortField = "codigo" | "nome" | "fornecedor" | "preco_custo" | "status";
+type SortField = "sku" | "nome" | "fornecedor" | "preco_custo" | "status";
 type SortDirection = "asc" | "desc";
 type SortAlign = "left" | "center" | "right";
 type GrupoResumo = { nome: string; quantidade: number };
@@ -43,8 +43,8 @@ function compareText(a: string, b: string): number {
 
 function compareMateriaPrima(a: MateriaPrima, b: MateriaPrima, field: SortField): number {
   switch (field) {
-    case "codigo":
-      return compareText(a.codigo, b.codigo);
+    case "sku":
+      return compareText(a.sku, b.sku);
     case "nome":
       return compareText(a.nome, b.nome);
     case "fornecedor":
@@ -296,8 +296,8 @@ function MPTabela({
               Foto
             </th>
             <SortableHeader
-              label="Código"
-              field="codigo"
+              label="SKU"
+              field="sku"
               sortField={sortField}
               sortDirection={sortDirection}
               onToggle={onToggleSort}
@@ -446,8 +446,7 @@ function MPTabela({
                   className="px-4 py-3 font-mono text-xs font-medium"
                   style={{ color: "var(--ac-muted)" }}
                 >
-                  <div>{mp.codigo}</div>
-                  <div>SKU: {mp.sku}</div>
+                  <div>{mp.sku}</div>
                 </td>
                 <td className="px-4 py-3 font-medium" style={{ color: "var(--ac-text)" }}>
                   {mp.nome}
@@ -590,7 +589,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
   });
   const [viewMode, setViewMode] = useState<ViewMode>("categorias");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>("codigo");
+  const [sortField, setSortField] = useState<SortField>("sku");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const tipos = useMemo<TipoResumo[]>(() => {
@@ -666,7 +665,6 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
     return base.filter(
       (mp) =>
         mp.nome.toLowerCase().includes(q) ||
-        mp.codigo.toLowerCase().includes(q) ||
         mp.sku.toLowerCase().includes(q) ||
         mp.fornecedor?.nome?.toLowerCase().includes(q) ||
         formatDetalhesTipo(mp).toLowerCase().includes(q),
@@ -677,7 +675,7 @@ export function MPClient({ materiasPrimas: initialMP, perm }: Props) {
     const sorted = [...itensVisiveis].sort((a, b) => {
       const primary = compareMateriaPrima(a, b, sortField);
       if (primary !== 0) return sortDirection === "asc" ? primary : -primary;
-      return compareText(a.codigo, b.codigo);
+      return compareText(a.sku, b.sku);
     });
 
     return sorted;

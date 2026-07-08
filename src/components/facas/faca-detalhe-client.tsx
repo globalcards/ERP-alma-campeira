@@ -475,7 +475,7 @@ export function FacaDetalheClient({
                       className="text-left px-4 py-2.5 font-semibold text-xs uppercase tracking-wide"
                       style={{ color: "var(--ac-muted)" }}
                     >
-                      Código
+                      SKU
                     </th>
                     <th
                       className="text-left px-4 py-2.5 font-semibold text-xs uppercase tracking-wide"
@@ -559,7 +559,7 @@ export function FacaDetalheClient({
                           className="px-4 py-2.5 font-mono text-xs"
                           style={{ color: "var(--ac-muted)" }}
                         >
-                          {mp?.codigo ?? "—"}
+                          {mp?.sku ?? "—"}
                         </td>
                         <td className="px-4 py-2.5 font-medium" style={{ color: "var(--ac-text)" }}>
                           {mp?.nome ?? "—"}

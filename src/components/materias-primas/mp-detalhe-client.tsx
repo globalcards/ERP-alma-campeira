@@ -255,7 +255,7 @@ export function MPDetalheClient({
                 /
               </span>
               <span className="text-xs font-mono" style={{ color: "var(--ac-muted)" }}>
-                {mp.codigo}
+                {mp.sku}
               </span>
             </div>
 
@@ -265,7 +265,7 @@ export function MPDetalheClient({
 
             <div className="flex items-center gap-4 flex-wrap">
               <span className="text-sm font-mono" style={{ color: "var(--ac-muted)" }}>
-                {mp.codigo}
+                SKU: {mp.sku}
               </span>
               <span
                 className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
@@ -703,7 +703,7 @@ export function MPDetalheClient({
       <Modal
         open={entradaModalOpen}
         onClose={() => setEntradaModalOpen(false)}
-        title={`Entrada de Estoque — ${mp.codigo}`}
+        title={`Entrada de Estoque — ${mp.sku}`}
         width="440px"
       >
         <div className="flex flex-col gap-4">

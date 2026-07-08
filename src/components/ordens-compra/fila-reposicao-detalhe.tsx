@@ -314,7 +314,7 @@ export function FilaReposicaoDetalheModal({
                                 <BadgeEstoque atual={mp.estoque_atual} minimo={mp.estoque_minimo} />
                                 <div className="flex-1 min-w-0">
                                   <span className="font-medium" style={{ color: 'var(--ac-text)' }}>{mp.mp_nome}</span>
-                                  <span className="ml-1.5 font-mono" style={{ color: 'var(--ac-muted)' }}>{mp.mp_codigo}</span>
+                                  <span className="ml-1.5 font-mono" style={{ color: 'var(--ac-muted)' }}>SKU: {mp.mp_sku}</span>
                                 </div>
                                 <span className="whitespace-nowrap" style={{ color: 'var(--ac-muted)' }}>
                                   {fmtQtd(mp.quantidade_por_faca)} / un · precisa {fmtQtd(necessidade)}
@@ -445,7 +445,7 @@ export function FilaReposicaoDetalheModal({
                       <td className="px-3 py-3">
                         <div className="font-medium" style={{ color: 'var(--ac-text)' }}>{item.mp_nome}</div>
                         <div className="text-xs font-mono mt-0.5" style={{ color: 'var(--ac-muted)' }}>
-                          {item.mp_codigo}
+                          SKU: {item.mp_sku}
                           {item.fornecedor_nome && (
                             <span className="ml-2">· {item.fornecedor_nome}</span>
                           )}

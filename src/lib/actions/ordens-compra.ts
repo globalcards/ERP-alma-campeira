@@ -256,6 +256,7 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
                         select: {
                           id: true,
                           codigo: true,
+                          sku: true,
                           tipoMaterial: true,
                           nome: true,
                           estoqueAtual: true,
@@ -303,6 +304,7 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
     materias_primas: pi.faca.bom.map((fm) => ({
       mp_id: fm.materiaPrima.id,
       mp_codigo: fm.materiaPrima.codigo,
+      mp_sku: fm.materiaPrima.sku,
       mp_nome: fm.materiaPrima.nome,
       quantidade_por_faca: numberFrom(fm.quantidade),
       estoque_atual: numberFrom(fm.materiaPrima.estoqueAtual),
@@ -327,6 +329,7 @@ export async function getFilaReposicaoDetalhe(fila_id: string): Promise<FilaRepo
     materia_prima_id: row.materiaPrimaId,
     mp_nome: row.materiaPrima.nome,
     mp_codigo: row.materiaPrima.codigo,
+    mp_sku: row.materiaPrima.sku,
     tipo_material: row.materiaPrima.tipoMaterial,
     mp_preco_custo: numberFrom(row.materiaPrima.precoCusto),
     fornecedor_id: row.materiaPrima.fornecedorId ?? null,

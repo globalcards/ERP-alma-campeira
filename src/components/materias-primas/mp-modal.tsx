@@ -412,6 +412,11 @@ function isBulkRowEmpty(row: BulkRow): boolean {
   ].every((value) => !value.trim());
 }
 
+function extractBulkErrorLineNumbers(message: string): number[] {
+  const matches = message.matchAll(/Linha\s+(\d+)\s*:/gi);
+  return [...new Set(Array.from(matches, (match) => Number(match[1])).filter(Number.isFinite))];
+}
+
 function getBulkColumns(tipoMaterial: TipoMaterial): BulkColumn[] {
   if (tipoMaterial === "lamina") {
     return [
@@ -454,6 +459,7 @@ export function MPModal({
   const [modo, setModo] = useState<BulkMode>("single");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => createBulkRows());
   const [erro, setErro] = useState("");
+  const [bulkErrorLineNumbers, setBulkErrorLineNumbers] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>("");
@@ -485,6 +491,7 @@ export function MPModal({
     setModo("single");
     setBulkRows(createBulkRows());
     setErro("");
+    setBulkErrorLineNumbers([]);
     setFotoFile(null);
     setFotoPreview("");
     setFotoDragActive(false);
@@ -529,12 +536,16 @@ export function MPModal({
 
   function setBulkCell(rowId: string, field: BulkField, value: string) {
     const normalizedValue = normalizeBulkCellValue(field, value);
+    setErro("");
+    setBulkErrorLineNumbers([]);
     setBulkRows((rows) =>
       rows.map((row) => (row.id === rowId ? { ...row, [field]: normalizedValue } : row)),
     );
   }
 
   function addBulkRows(count = BULK_ROWS_STEP) {
+    setErro("");
+    setBulkErrorLineNumbers([]);
     setBulkRows((rows) => [...rows, ...createBulkRows(count)]);
   }
 
@@ -549,6 +560,8 @@ export function MPModal({
 
     if (rowsFromClipboard.length === 0) return false;
 
+    setErro("");
+    setBulkErrorLineNumbers([]);
     setBulkRows((currentRows) => {
       const nextRows = [...currentRows];
       while (nextRows.length < startRowIndex + rowsFromClipboard.length) {
@@ -676,15 +689,23 @@ export function MPModal({
 
     const uniqueKeys = items.map((item) => buildMateriaPrimaUniqueKey(item));
     if (new Set(uniqueKeys).size !== uniqueKeys.length) {
-      errors.push("Existem linhas duplicadas na planilha para a mesma regra de unicidade do material.");
+      errors.push(
+        "Existem linhas duplicadas na planilha para a mesma regra de unicidade do material.",
+      );
     }
 
     return { items, errors };
   }
 
+  function setBulkErrorState(message: string) {
+    setErro(message);
+    setBulkErrorLineNumbers(extractBulkErrorLineNumbers(message));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
+    setBulkErrorLineNumbers([]);
     const tipoMaterialAtual = tipoMaterialContext ?? form.tipo_material;
 
     if (editando || modo === "single") {
@@ -734,7 +755,7 @@ export function MPModal({
 
     const { items, errors } = validateBulkRows();
     if (errors.length > 0) {
-      setErro(errors.join("\n"));
+      setBulkErrorState(errors.join("\n"));
       return;
     }
 
@@ -744,7 +765,9 @@ export function MPModal({
       onClose();
       onSaved?.();
     } catch (submitError: unknown) {
-      setErro(submitError instanceof Error ? submitError.message : "Erro ao criar em massa.");
+      setBulkErrorState(
+        submitError instanceof Error ? submitError.message : "Erro ao criar em massa.",
+      );
     } finally {
       setLoading(false);
     }
@@ -1378,57 +1401,68 @@ export function MPModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {bulkRows.map((row, rowIndex) => (
-                    <tr
-                      key={row.id}
-                      style={{
-                        borderTop: rowIndex > 0 ? "1px solid var(--ac-border)" : undefined,
-                        background: "var(--ac-card)",
-                      }}
-                    >
-                      <td
-                        className="px-3 py-2 text-center text-xs font-medium"
-                        style={{ color: "var(--ac-muted)" }}
+                  {bulkRows.map((row, rowIndex) => {
+                    const rowHasError = bulkErrorLineNumbers.includes(rowIndex + 1);
+                    return (
+                      <tr
+                        key={row.id}
+                        style={{
+                          borderTop: rowIndex > 0 ? "1px solid var(--ac-border)" : undefined,
+                          background: rowHasError ? "#fef2f2" : "var(--ac-card)",
+                        }}
                       >
-                        {rowIndex + 1}
-                      </td>
-                      {bulkColumns.map((column, colIndex) => (
-                        <td key={column.field} className="px-2 py-2 align-top">
-                          {column.kind === "select" ? (
-                            <select
-                              value={row[column.field]}
-                              onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
-                              onPaste={(e) => {
-                                const text = e.clipboardData.getData("text");
-                                if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
-                              }}
-                              style={cellSelectStyle}
-                            >
-                              <option value="">{column.placeholder}</option>
-                              {getBulkSelectOptions(row, column).map((opcao) => (
-                                <option key={opcao.value} value={opcao.value}>
-                                  {opcao.label}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              value={row[column.field]}
-                              list={column.listId}
-                              placeholder={column.placeholder}
-                              inputMode={column.inputMode}
-                              onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
-                              onPaste={(e) => {
-                                const text = e.clipboardData.getData("text");
-                                if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
-                              }}
-                              style={cellInputStyle}
-                            />
-                          )}
+                        <td
+                          className="px-3 py-2 text-center text-xs font-medium"
+                          style={{ color: rowHasError ? "#dc2626" : "var(--ac-muted)" }}
+                        >
+                          {rowIndex + 1}
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        {bulkColumns.map((column, colIndex) => (
+                          <td key={column.field} className="px-2 py-2 align-top">
+                            {column.kind === "select" ? (
+                              <select
+                                value={row[column.field]}
+                                onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
+                                onPaste={(e) => {
+                                  const text = e.clipboardData.getData("text");
+                                  if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
+                                }}
+                                style={{
+                                  ...cellSelectStyle,
+                                  borderColor: rowHasError ? "#dc2626" : "var(--ac-border)",
+                                  background: rowHasError ? "#fff7f7" : cellSelectStyle.background,
+                                }}
+                              >
+                                <option value="">{column.placeholder}</option>
+                                {getBulkSelectOptions(row, column).map((opcao) => (
+                                  <option key={opcao.value} value={opcao.value}>
+                                    {opcao.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                value={row[column.field]}
+                                list={column.listId}
+                                placeholder={column.placeholder}
+                                inputMode={column.inputMode}
+                                onChange={(e) => setBulkCell(row.id, column.field, e.target.value)}
+                                onPaste={(e) => {
+                                  const text = e.clipboardData.getData("text");
+                                  if (applyBulkPaste(rowIndex, colIndex, text)) e.preventDefault();
+                                }}
+                                style={{
+                                  ...cellInputStyle,
+                                  borderColor: rowHasError ? "#dc2626" : "var(--ac-border)",
+                                  background: rowHasError ? "#fff7f7" : cellInputStyle.background,
+                                }}
+                              />
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

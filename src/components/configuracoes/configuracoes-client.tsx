@@ -1,41 +1,44 @@
-'use client'
+"use client";
 
-import { useTheme } from 'next-themes'
-import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { CategoriasFacaSection } from './categorias-faca-section'
-import { CategoriasConsumivelSection } from './categorias-consumivel-section'
-import { EmpresaSection } from './empresa-section'
-import { OpcoesMaterialSection } from './opcoes-material-section'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { updateTaxasLucroConfig, type TaxasLucroConfig } from '@/lib/actions/app-config'
+import { useTheme } from "next-themes";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { CategoriasFacaSection } from "./categorias-faca-section";
+import { CategoriasConsumivelSection } from "./categorias-consumivel-section";
+import { EmpresaSection } from "./empresa-section";
+import { OpcoesMaterialSection } from "./opcoes-material-section";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { updateTaxasLucroConfig, type TaxasLucroConfig } from "@/lib/actions/app-config";
 import type {
   CategoriaFacaDB,
   CategoriaConsumivelDB,
   Empresa,
   OpcoesMateriaisPorTipo,
-} from '@/types'
+} from "@/types";
 
-const SENHA_MIN_LEN = 8
+const SENHA_MIN_LEN = 8;
 
 function usuarioPodeSenhaEmail(identities: { provider: string }[] | undefined): boolean {
-  return Boolean(identities?.some((i) => i.provider === 'email'))
+  return Boolean(identities?.some((i) => i.provider === "email"));
 }
 
 function mapearErroSenhaAutenticacao(message: string): string {
-  const m = message.toLowerCase()
-  if (m.includes('invalid login credentials')) return 'Senha atual incorreta.'
-  if (m.includes('password should be at least') || (m.includes('at least') && m.includes('character'))) {
-    return 'A nova senha não atende ao tamanho mínimo exigido pelo sistema.'
+  const m = message.toLowerCase();
+  if (m.includes("invalid login credentials")) return "Senha atual incorreta.";
+  if (
+    m.includes("password should be at least") ||
+    (m.includes("at least") && m.includes("character"))
+  ) {
+    return "A nova senha não atende ao tamanho mínimo exigido pelo sistema.";
   }
-  if (m.includes('same as the old password') || m.includes('different from the old')) {
-    return 'A nova senha deve ser diferente da senha atual.'
+  if (m.includes("same as the old password") || m.includes("different from the old")) {
+    return "A nova senha deve ser diferente da senha atual.";
   }
-  if (m.includes('weak') || m.includes('pwned') || m.includes('leaked')) {
-    return 'Esta senha é considerada fraca ou comprometida. Escolha outra.'
+  if (m.includes("weak") || m.includes("pwned") || m.includes("leaked")) {
+    return "Esta senha é considerada fraca ou comprometida. Escolha outra.";
   }
-  return message
+  return message;
 }
 
 function PasswordInputToggle({
@@ -46,40 +49,41 @@ function PasswordInputToggle({
   disabled,
   autoComplete,
 }: {
-  id: string
-  label: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  disabled?: boolean
-  autoComplete?: string
+  id: string;
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  autoComplete?: string;
 }) {
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(false);
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>
+      <label htmlFor={id} className="text-sm font-medium" style={{ color: "var(--ac-text)" }}>
         {label}
       </label>
       <div className="relative">
         <input
           id={id}
-          type={visible ? 'text' : 'password'}
+          type={visible ? "text" : "password"}
           autoComplete={autoComplete}
           value={value}
           onChange={onChange}
           disabled={disabled}
           className="w-full rounded-lg py-2.5 pl-3 pr-11 text-sm outline-none transition-all"
           style={{
-            background: 'var(--ac-card)',
-            border: '1px solid var(--ac-border)',
-            color: 'var(--ac-text)',
+            background: "var(--ac-card)",
+            border: "1px solid var(--ac-border)",
+            color: "var(--ac-text)",
           }}
           onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'var(--ac-accent)'
-            e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--ac-accent) 20%, transparent)'
+            e.currentTarget.style.borderColor = "var(--ac-accent)";
+            e.currentTarget.style.boxShadow =
+              "0 0 0 3px color-mix(in srgb, var(--ac-accent) 20%, transparent)";
           }}
           onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--ac-border)'
-            e.currentTarget.style.boxShadow = 'none'
+            e.currentTarget.style.borderColor = "var(--ac-border)";
+            e.currentTarget.style.boxShadow = "none";
           }}
         />
         <button
@@ -87,14 +91,14 @@ function PasswordInputToggle({
           onClick={() => setVisible((v) => !v)}
           disabled={disabled}
           className="absolute right-0 top-0 flex h-full min-w-11 items-center justify-center rounded-r-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ac-accent)]"
-          style={{ color: 'var(--ac-muted)' }}
+          style={{ color: "var(--ac-muted)" }}
           onMouseEnter={(e) => {
-            if (!disabled) e.currentTarget.style.color = 'var(--ac-text)'
+            if (!disabled) e.currentTarget.style.color = "var(--ac-text)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--ac-muted)'
+            e.currentTarget.style.color = "var(--ac-muted)";
           }}
-          aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+          aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
           aria-pressed={visible}
         >
           {visible ? (
@@ -138,45 +142,65 @@ function PasswordInputToggle({
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 const SETTINGS_SECTIONS = [
-  { id: 'config-aparencia', label: 'Aparência' },
-  { id: 'config-empresa', label: 'Empresa' },
-  { id: 'config-taxas-lucro', label: 'Taxa' },
-  { id: 'categorias-faca', label: 'Facas' },
-  { id: 'categorias-consumivel', label: 'Consumíveis' },
-  { id: 'config-conta', label: 'Conta' },
-] as const
+  { id: "config-aparencia", label: "Aparência" },
+  { id: "config-empresa", label: "Empresa" },
+  { id: "config-taxas-lucro", label: "Taxa" },
+  { id: "categorias-faca", label: "Facas" },
+  { id: "categorias-consumivel", label: "Consumíveis" },
+  { id: "config-conta", label: "Conta" },
+] as const;
 
-function ThemeMiniPreview({ variant }: { variant: 'light' | 'dark' }) {
-  const isLight = variant === 'light'
+function ThemeMiniPreview({ variant }: { variant: "light" | "dark" }) {
+  const isLight = variant === "light";
   return (
     <div
       className="mt-3 rounded-lg overflow-hidden w-full max-w-[200px] sm:max-w-none"
       style={{
-        border: '1px solid',
-        borderColor: isLight ? 'color-mix(in srgb, #94a3b8 35%, transparent)' : 'color-mix(in srgb, #64748b 45%, transparent)',
-        boxShadow: isLight ? '0 1px 2px rgba(15,23,42,0.06)' : '0 1px 3px rgba(0,0,0,0.35)',
+        border: "1px solid",
+        borderColor: isLight
+          ? "color-mix(in srgb, #94a3b8 35%, transparent)"
+          : "color-mix(in srgb, #64748b 45%, transparent)",
+        boxShadow: isLight ? "0 1px 2px rgba(15,23,42,0.06)" : "0 1px 3px rgba(0,0,0,0.35)",
       }}
       aria-hidden
     >
       <div
         className="flex items-center gap-1 px-2 py-1.5"
-        style={{ background: isLight ? '#e5e7eb' : '#374151' }}
+        style={{ background: isLight ? "#e5e7eb" : "#374151" }}
       >
-        <span className="size-2 rounded-full" style={{ background: isLight ? '#f87171' : '#9ca3af' }} />
-        <span className="size-2 rounded-full" style={{ background: isLight ? '#fbbf24' : '#9ca3af' }} />
-        <span className="size-2 rounded-full" style={{ background: isLight ? '#34d399' : '#9ca3af' }} />
-        <div className="ml-auto h-1.5 w-8 rounded-full" style={{ background: isLight ? '#d1d5db' : '#4b5563' }} />
+        <span
+          className="size-2 rounded-full"
+          style={{ background: isLight ? "#f87171" : "#9ca3af" }}
+        />
+        <span
+          className="size-2 rounded-full"
+          style={{ background: isLight ? "#fbbf24" : "#9ca3af" }}
+        />
+        <span
+          className="size-2 rounded-full"
+          style={{ background: isLight ? "#34d399" : "#9ca3af" }}
+        />
+        <div
+          className="ml-auto h-1.5 w-8 rounded-full"
+          style={{ background: isLight ? "#d1d5db" : "#4b5563" }}
+        />
       </div>
-      <div className="flex gap-1 p-1.5" style={{ background: isLight ? '#f9fafb' : '#111827' }}>
-        <div className="flex-1 rounded min-h-[36px]" style={{ background: isLight ? '#ffffff' : '#1f2937' }} />
-        <div className="w-[28%] rounded min-h-[36px]" style={{ background: isLight ? '#f3f4f6' : '#0f172a' }} />
+      <div className="flex gap-1 p-1.5" style={{ background: isLight ? "#f9fafb" : "#111827" }}>
+        <div
+          className="flex-1 rounded min-h-[36px]"
+          style={{ background: isLight ? "#ffffff" : "#1f2937" }}
+        />
+        <div
+          className="w-[28%] rounded min-h-[36px]"
+          style={{ background: isLight ? "#f3f4f6" : "#0f172a" }}
+        />
       </div>
     </div>
-  )
+  );
 }
 
 function ThemeOption({
@@ -188,54 +212,62 @@ function ThemeOption({
   description,
   previewVariant,
 }: {
-  value: string
-  current: string | undefined
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  description: string
-  previewVariant: 'light' | 'dark'
+  value: string;
+  current: string | undefined;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+  previewVariant: "light" | "dark";
 }) {
-  const isSelected = current === value
+  const isSelected = current === value;
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex flex-col sm:flex-row items-stretch gap-4 w-full rounded-xl p-4 text-left transition-all hover:opacity-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--ac-accent)] focus-visible:ring-offset-[var(--ac-bg)]"
       style={{
-        background: isSelected ? 'color-mix(in srgb, var(--ac-accent) 8%, var(--ac-card))' : 'var(--ac-card)',
-        border: `2px solid ${isSelected ? 'var(--ac-accent)' : 'var(--ac-border)'}`,
+        background: isSelected
+          ? "color-mix(in srgb, var(--ac-accent) 8%, var(--ac-card))"
+          : "var(--ac-card)",
+        border: `2px solid ${isSelected ? "var(--ac-accent)" : "var(--ac-border)"}`,
       }}
     >
       <div className="flex items-start gap-4 flex-1 min-w-0">
         <div
           className="size-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
           style={{
-            background: isSelected ? 'var(--ac-accent)' : 'var(--ac-bg)',
-            color: isSelected ? '#111827' : 'var(--ac-muted)',
-            border: `1px solid ${isSelected ? 'transparent' : 'var(--ac-border)'}`,
+            background: isSelected ? "var(--ac-accent)" : "var(--ac-bg)",
+            color: isSelected ? "#111827" : "var(--ac-muted)",
+            border: `1px solid ${isSelected ? "transparent" : "var(--ac-border)"}`,
           }}
         >
           {icon}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-sm" style={{ color: 'var(--ac-text)' }}>
+            <span className="font-semibold text-sm" style={{ color: "var(--ac-text)" }}>
               {label}
             </span>
             {isSelected && (
               <span
                 className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: 'var(--ac-accent)', color: '#111827' }}
+                style={{ background: "var(--ac-accent)", color: "#111827" }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="size-3">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  className="size-3"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 Ativo
               </span>
             )}
           </div>
-          <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--ac-muted)' }}>
+          <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--ac-muted)" }}>
             {description}
           </p>
         </div>
@@ -244,19 +276,19 @@ function ThemeOption({
         <ThemeMiniPreview variant={previewVariant} />
       </div>
     </button>
-  )
+  );
 }
 
-type PermTaxas = { ver: boolean; editar: boolean }
+type PermTaxas = { ver: boolean; editar: boolean };
 
 type Props = {
-  categorias: CategoriaFacaDB[]
-  categoriasConsumivel: CategoriaConsumivelDB[]
-  opcoesMateriais: OpcoesMateriaisPorTipo
-  taxasLucro: TaxasLucroConfig
-  permTaxasLucro: PermTaxas
-  empresa: Empresa | null
-}
+  categorias: CategoriaFacaDB[];
+  categoriasConsumivel: CategoriaConsumivelDB[];
+  opcoesMateriais: OpcoesMateriaisPorTipo;
+  taxasLucro: TaxasLucroConfig;
+  permTaxasLucro: PermTaxas;
+  empresa: Empresa | null;
+};
 
 export function ConfiguracoesClient({
   categorias,
@@ -266,145 +298,145 @@ export function ConfiguracoesClient({
   permTaxasLucro,
   empresa,
 }: Props) {
-  const { theme, setTheme } = useTheme()
-  const router = useRouter()
-  const [mounted, setMounted] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
-  const [signOutError, setSignOutError] = useState<string | null>(null)
-  const [authContaLoading, setAuthContaLoading] = useState(true)
-  const [podeTrocarSenha, setPodeTrocarSenha] = useState(false)
-  const [senhaAtual, setSenhaAtual] = useState('')
-  const [senhaNova, setSenhaNova] = useState('')
-  const [senhaConfirmar, setSenhaConfirmar] = useState('')
-  const [passwordPending, setPasswordPending] = useState(false)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
-  const [tp, setTp] = useState(String(taxasLucro.taxa_producao))
-  const [ml, setMl] = useState(String(taxasLucro.margem_lucro))
-  const [tc, setTc] = useState(String(taxasLucro.taxa_comissao))
-  const [taxasMsg, setTaxasMsg] = useState<string | null>(null)
-  const [taxasErr, setTaxasErr] = useState<string | null>(null)
-  const [pendingTaxas, startTaxas] = useTransition()
+  const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [authContaLoading, setAuthContaLoading] = useState(true);
+  const [podeTrocarSenha, setPodeTrocarSenha] = useState(false);
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [senhaNova, setSenhaNova] = useState("");
+  const [senhaConfirmar, setSenhaConfirmar] = useState("");
+  const [passwordPending, setPasswordPending] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [tp, setTp] = useState(String(taxasLucro.taxa_producao));
+  const [ml, setMl] = useState(String(taxasLucro.margem_lucro));
+  const [tc, setTc] = useState(String(taxasLucro.taxa_comissao));
+  const [taxasMsg, setTaxasMsg] = useState<string | null>(null);
+  const [taxasErr, setTaxasErr] = useState<string | null>(null);
+  const [pendingTaxas, startTaxas] = useTransition();
 
   // Evita hydration mismatch
-  useEffect(() => setMounted(true), [])
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const response = await fetch('/api/auth/user', { cache: 'no-store' })
+    let cancelled = false;
+    (async () => {
+      const response = await fetch("/api/auth/user", { cache: "no-store" });
       const body = (await response.json().catch(() => null)) as {
-        user?: { email?: string | null; identities?: { provider: string }[] } | null
-      } | null
-      const user = response.ok ? body?.user ?? null : null
-      if (cancelled) return
-      const emailOk = Boolean(user?.email?.trim())
-      setPodeTrocarSenha(emailOk && usuarioPodeSenhaEmail(user?.identities))
-      setAuthContaLoading(false)
-    })()
+        user?: { email?: string | null; identities?: { provider: string }[] } | null;
+      } | null;
+      const user = response.ok ? (body?.user ?? null) : null;
+      if (cancelled) return;
+      const emailOk = Boolean(user?.email?.trim());
+      setPodeTrocarSenha(emailOk && usuarioPodeSenhaEmail(user?.identities));
+      setAuthContaLoading(false);
+    })();
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    setTp(String(taxasLucro.taxa_producao))
-    setMl(String(taxasLucro.margem_lucro))
-    setTc(String(taxasLucro.taxa_comissao))
-  }, [taxasLucro.taxa_producao, taxasLucro.margem_lucro, taxasLucro.taxa_comissao])
+    setTp(String(taxasLucro.taxa_producao));
+    setMl(String(taxasLucro.margem_lucro));
+    setTc(String(taxasLucro.taxa_comissao));
+  }, [taxasLucro.taxa_producao, taxasLucro.margem_lucro, taxasLucro.taxa_comissao]);
 
   async function handleSignOut() {
-    setSignOutError(null)
-    setIsSigningOut(true)
+    setSignOutError(null);
+    setIsSigningOut(true);
 
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-    })
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+    });
 
     if (!response.ok) {
-      setSignOutError('Nao foi possivel sair da conta. Tente novamente.')
-      setIsSigningOut(false)
-      return
+      setSignOutError("Nao foi possivel sair da conta. Tente novamente.");
+      setIsSigningOut(false);
+      return;
     }
 
-    router.replace('/login')
-    router.refresh()
+    router.replace("/login");
+    router.refresh();
   }
 
   async function handleTrocarSenha(e: React.FormEvent) {
-    e.preventDefault()
-    setPasswordError(null)
-    setPasswordSuccess(null)
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
 
-    const atual = senhaAtual
-    const nova = senhaNova.trim()
-    const conf = senhaConfirmar.trim()
+    const atual = senhaAtual;
+    const nova = senhaNova.trim();
+    const conf = senhaConfirmar.trim();
 
     if (nova.length < SENHA_MIN_LEN) {
-      setPasswordError(`A nova senha deve ter pelo menos ${SENHA_MIN_LEN} caracteres.`)
-      return
+      setPasswordError(`A nova senha deve ter pelo menos ${SENHA_MIN_LEN} caracteres.`);
+      return;
     }
     if (nova !== conf) {
-      setPasswordError('A confirmação não coincide com a nova senha.')
-      return
+      setPasswordError("A confirmação não coincide com a nova senha.");
+      return;
     }
     if (nova === atual) {
-      setPasswordError('A nova senha deve ser diferente da senha atual.')
-      return
+      setPasswordError("A nova senha deve ser diferente da senha atual.");
+      return;
     }
 
-    setPasswordPending(true)
+    setPasswordPending(true);
     try {
-      const response = await fetch('/api/auth/password', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/auth/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword: atual,
           password: nova,
         }),
-      })
+      });
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null
-        setPasswordError(mapearErroSenhaAutenticacao(body?.error ?? 'Erro ao alterar senha.'))
-        return
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        setPasswordError(mapearErroSenhaAutenticacao(body?.error ?? "Erro ao alterar senha."));
+        return;
       }
 
-      setSenhaAtual('')
-      setSenhaNova('')
-      setSenhaConfirmar('')
-      setPasswordSuccess('Senha alterada com sucesso.')
-      router.refresh()
+      setSenhaAtual("");
+      setSenhaNova("");
+      setSenhaConfirmar("");
+      setPasswordSuccess("Senha alterada com sucesso.");
+      router.refresh();
     } finally {
-      setPasswordPending(false)
+      setPasswordPending(false);
     }
   }
 
   function salvarTaxasLucro() {
-    setTaxasMsg(null)
-    setTaxasErr(null)
-    const taxa_producao = parseFloat(tp.replace(',', '.'))
-    const margem_lucro = parseFloat(ml.replace(',', '.'))
-    const taxa_comissao = parseFloat(tc.replace(',', '.'))
+    setTaxasMsg(null);
+    setTaxasErr(null);
+    const taxa_producao = parseFloat(tp.replace(",", "."));
+    const margem_lucro = parseFloat(ml.replace(",", "."));
+    const taxa_comissao = parseFloat(tc.replace(",", "."));
     if (!Number.isFinite(taxa_producao) || taxa_producao < 0) {
-      setTaxasErr('Informe um valor válido para a taxa de produção (R$ ≥ 0).')
-      return
+      setTaxasErr("Informe um valor válido para a taxa de produção (R$ ≥ 0).");
+      return;
     }
     if (!Number.isFinite(margem_lucro) || margem_lucro < 0) {
-      setTaxasErr('Informe uma margem de lucro válida (% ≥ 0).')
-      return
+      setTaxasErr("Informe uma margem de lucro válida (% ≥ 0).");
+      return;
     }
     if (!Number.isFinite(taxa_comissao) || taxa_comissao < 0 || taxa_comissao > 100) {
-      setTaxasErr('Informe a taxa de comissão entre 0 e 100%.')
-      return
+      setTaxasErr("Informe a taxa de comissão entre 0 e 100%.");
+      return;
     }
     startTaxas(async () => {
       try {
-        await updateTaxasLucroConfig({ taxa_producao, margem_lucro, taxa_comissao })
-        setTaxasMsg('Taxas salvas.')
+        await updateTaxasLucroConfig({ taxa_producao, margem_lucro, taxa_comissao });
+        setTaxasMsg("Taxas salvas.");
       } catch (e: unknown) {
-        setTaxasErr(e instanceof Error ? e.message : 'Erro ao salvar.')
+        setTaxasErr(e instanceof Error ? e.message : "Erro ao salvar.");
       }
-    })
+    });
   }
 
   return (
@@ -412,15 +444,22 @@ export function ConfiguracoesClient({
       {/* Header */}
       <div
         className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6"
-        style={{ borderBottom: '1px solid var(--ac-border)' }}
+        style={{ borderBottom: "1px solid var(--ac-border)" }}
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: 'var(--ac-text)' }}>
+            <h2
+              className="text-xl sm:text-2xl font-bold tracking-tight"
+              style={{ color: "var(--ac-text)" }}
+            >
               Configurações
             </h2>
-            <p className="text-sm mt-1 max-w-xl leading-relaxed" style={{ color: 'var(--ac-muted)' }}>
-              Ajuste a aparência, taxas usadas no cálculo de lucro, organize categorias no cadastro e gerencie sua sessão.
+            <p
+              className="text-sm mt-1 max-w-xl leading-relaxed"
+              style={{ color: "var(--ac-muted)" }}
+            >
+              Ajuste a aparência, taxas usadas no cálculo de lucro, organize categorias no cadastro
+              e gerencie sua sessão.
             </p>
           </div>
         </div>
@@ -435,7 +474,7 @@ export function ConfiguracoesClient({
           >
             <p
               className="hidden xl:block text-xs font-semibold uppercase tracking-wider mb-3"
-              style={{ color: 'var(--ac-muted)' }}
+              style={{ color: "var(--ac-muted)" }}
             >
               Nesta página
             </p>
@@ -446,13 +485,15 @@ export function ConfiguracoesClient({
                     href={`#${s.id}`}
                     className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors xl:w-full"
                     style={{
-                      background: 'var(--ac-card)',
-                      border: '1px solid var(--ac-border)',
-                      color: 'var(--ac-text)',
+                      background: "var(--ac-card)",
+                      border: "1px solid var(--ac-border)",
+                      color: "var(--ac-text)",
                     }}
                     onClick={(e) => {
-                      e.preventDefault()
-                      document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      e.preventDefault();
+                      document
+                        .getElementById(s.id)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }}
                   >
                     {s.label}
@@ -468,35 +509,44 @@ export function ConfiguracoesClient({
               id="config-aparencia"
               className="scroll-mt-24 rounded-xl p-5 sm:p-6 shadow-sm"
               style={{
-                background: 'var(--ac-card)',
-                border: '1px solid var(--ac-border)',
-                boxShadow: '0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)',
+                background: "var(--ac-card)",
+                border: "1px solid var(--ac-border)",
+                boxShadow: "0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)",
               }}
             >
               <div className="mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-semibold" style={{ color: 'var(--ac-text)' }}>
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--ac-text)" }}>
                     Aparência
                   </h2>
-                  <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--ac-muted)' }}>
+                  <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--ac-muted)" }}>
                     Escolha como o sistema vai aparecer para você. A troca é aplicada na hora.
                   </p>
                 </div>
               </div>
 
               {!mounted ? (
-                <div className="h-40 sm:h-48 rounded-xl animate-pulse" style={{ background: 'var(--ac-bg)' }} />
+                <div
+                  className="h-40 sm:h-48 rounded-xl animate-pulse"
+                  style={{ background: "var(--ac-bg)" }}
+                />
               ) : (
                 <div className="flex flex-col gap-4">
                   <ThemeOption
                     value="light"
                     current={theme}
-                    onClick={() => setTheme('light')}
+                    onClick={() => setTheme("light")}
                     label="Claro"
                     description="Fundo claro, ideal para ambientes bem iluminados e leitura prolongada."
                     previewVariant="light"
                     icon={
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-5">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                        className="size-5"
+                      >
                         <circle cx="12" cy="12" r="5" />
                         <line x1="12" y1="1" x2="12" y2="3" />
                         <line x1="12" y1="21" x2="12" y2="23" />
@@ -512,12 +562,18 @@ export function ConfiguracoesClient({
                   <ThemeOption
                     value="dark"
                     current={theme}
-                    onClick={() => setTheme('dark')}
+                    onClick={() => setTheme("dark")}
                     label="Escuro"
                     description="Fundo escuro, mais confortável à noite ou em ambientes com pouca luz."
                     previewVariant="dark"
                     icon={
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-5">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                        className="size-5"
+                      >
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                       </svg>
                     }
@@ -533,18 +589,24 @@ export function ConfiguracoesClient({
                 id="config-taxas-lucro"
                 className="scroll-mt-24 rounded-xl p-5 sm:p-6 shadow-sm"
                 style={{
-                  background: 'var(--ac-card)',
-                  border: '1px solid var(--ac-border)',
-                  boxShadow: '0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)',
+                  background: "var(--ac-card)",
+                  border: "1px solid var(--ac-border)",
+                  boxShadow: "0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)",
                 }}
               >
                 <div className="mb-5 sm:mb-6">
-                  <h2 className="text-lg font-semibold" style={{ color: 'var(--ac-text)' }}>
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--ac-text)" }}>
                     Taxas para cálculo de lucro
                   </h2>
-                  <p className="text-sm mt-1 leading-relaxed max-w-2xl" style={{ color: 'var(--ac-muted)' }}>
-                    Custo de produção = custo BOM + taxa de produção (R$ fixo). Preço de venda = custo de produção × (1 + margem de lucro). Lucro = preço de venda − comissão − custo de produção.
-                    {!permTaxasLucro.editar && ' Você pode visualizar os valores; apenas quem tem permissão de edição altera as taxas.'}
+                  <p
+                    className="text-sm mt-1 leading-relaxed max-w-2xl"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Custo de produção = custo BOM + taxa de produção (R$ fixo). Preço de venda =
+                    custo de produção × (1 + margem de lucro). Lucro = preço de venda − comissão −
+                    custo de produção.
+                    {!permTaxasLucro.editar &&
+                      " Você pode visualizar os valores; apenas quem tem permissão de edição altera as taxas."}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
@@ -581,11 +643,18 @@ export function ConfiguracoesClient({
                     <Button type="button" onClick={salvarTaxasLucro} loading={pendingTaxas}>
                       Salvar taxas
                     </Button>
-                    {taxasMsg && <span className="text-sm" style={{ color: '#15803d' }}>{taxasMsg}</span>}
+                    {taxasMsg && (
+                      <span className="text-sm" style={{ color: "#15803d" }}>
+                        {taxasMsg}
+                      </span>
+                    )}
                   </div>
                 )}
                 {taxasErr && (
-                  <p className="text-sm mt-3 rounded-lg px-3 py-2" style={{ color: '#dc2626', background: '#fee2e2' }}>
+                  <p
+                    className="text-sm mt-3 rounded-lg px-3 py-2"
+                    style={{ color: "#dc2626", background: "#fee2e2" }}
+                  >
                     {taxasErr}
                   </p>
                 )}
@@ -604,27 +673,27 @@ export function ConfiguracoesClient({
               id="config-conta"
               className="scroll-mt-24 rounded-xl p-5 sm:p-6 shadow-sm"
               style={{
-                background: 'var(--ac-card)',
-                border: '1px solid var(--ac-border)',
-                boxShadow: '0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)',
+                background: "var(--ac-card)",
+                border: "1px solid var(--ac-border)",
+                boxShadow: "0 1px 3px color-mix(in srgb, var(--ac-text) 6%, transparent)",
               }}
             >
               <div className="mb-5">
-                <h2 className="text-lg font-semibold" style={{ color: 'var(--ac-text)' }}>
+                <h2 className="text-lg font-semibold" style={{ color: "var(--ac-text)" }}>
                   Conta
                 </h2>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--ac-muted)' }}>
+                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--ac-muted)" }}>
                   Altere sua senha ou encerre a sessão neste dispositivo.
                 </p>
               </div>
 
               {authContaLoading ? (
-                <p className="text-sm mb-6" style={{ color: 'var(--ac-muted)' }}>
+                <p className="text-sm mb-6" style={{ color: "var(--ac-muted)" }}>
                   Carregando opções da conta…
                 </p>
               ) : podeTrocarSenha ? (
                 <form onSubmit={handleTrocarSenha} className="mb-8 flex flex-col gap-4 max-w-md">
-                  <h3 className="text-sm font-semibold" style={{ color: 'var(--ac-text)' }}>
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
                     Alterar senha
                   </h3>
                   <PasswordInputToggle
@@ -657,12 +726,18 @@ export function ConfiguracoesClient({
                     </Button>
                   </div>
                   {passwordSuccess ? (
-                    <p className="text-sm rounded-lg px-3 py-2" style={{ color: '#15803d', background: '#dcfce7' }}>
+                    <p
+                      className="text-sm rounded-lg px-3 py-2"
+                      style={{ color: "#15803d", background: "#dcfce7" }}
+                    >
                       {passwordSuccess}
                     </p>
                   ) : null}
                   {passwordError ? (
-                    <p className="text-sm rounded-lg px-3 py-2" style={{ color: '#dc2626', background: '#fee2e2' }}>
+                    <p
+                      className="text-sm rounded-lg px-3 py-2"
+                      style={{ color: "#dc2626", background: "#fee2e2" }}
+                    >
                       {passwordError}
                     </p>
                   ) : null}
@@ -670,11 +745,16 @@ export function ConfiguracoesClient({
               ) : (
                 <div
                   className="mb-8 rounded-lg px-3 py-3 text-sm leading-relaxed max-w-xl"
-                  style={{ background: 'var(--ac-bg)', color: 'var(--ac-muted)', border: '1px solid var(--ac-border)' }}
+                  style={{
+                    background: "var(--ac-bg)",
+                    color: "var(--ac-muted)",
+                    border: "1px solid var(--ac-border)",
+                  }}
                 >
-                  Sua conta não usa login com e-mail e senha (por exemplo, apenas provedor social). A troca de senha
-                  por aqui não está disponível. Use o fluxo oferecido pelo provedor ou, na tela de login, a opção de
-                  recuperação por e-mail, se configurada no projeto.
+                  Sua conta não usa login com e-mail e senha (por exemplo, apenas provedor social).
+                  A troca de senha por aqui não está disponível. Use o fluxo oferecido pelo provedor
+                  ou, na tela de login, a opção de recuperação por e-mail, se configurada no
+                  projeto.
                 </div>
               )}
 
@@ -684,16 +764,16 @@ export function ConfiguracoesClient({
                 disabled={isSigningOut}
                 className="w-full sm:w-auto rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
-                  background: 'color-mix(in srgb, #ef4444 18%, transparent)',
-                  border: '1px solid color-mix(in srgb, #ef4444 40%, var(--ac-border))',
-                  color: '#ef4444',
+                  background: "color-mix(in srgb, #ef4444 18%, transparent)",
+                  border: "1px solid color-mix(in srgb, #ef4444 40%, var(--ac-border))",
+                  color: "#ef4444",
                 }}
               >
-                {isSigningOut ? 'Saindo...' : 'Sair da conta'}
+                {isSigningOut ? "Saindo..." : "Sair da conta"}
               </button>
 
               {signOutError ? (
-                <p className="text-sm mt-3" style={{ color: '#ef4444' }}>
+                <p className="text-sm mt-3" style={{ color: "#ef4444" }}>
                   {signOutError}
                 </p>
               ) : null}
@@ -702,5 +782,5 @@ export function ConfiguracoesClient({
         </div>
       </div>
     </div>
-  )
+  );
 }
