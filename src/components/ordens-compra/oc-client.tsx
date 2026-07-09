@@ -81,6 +81,10 @@ function normalizarAgrupadorMaterial(valor: string | null | undefined) {
   return (valor ?? "").trim().toLocaleLowerCase("pt-BR");
 }
 
+function normalizarTextoBusca(valor: string) {
+  return valor.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
 function obterAgrupadorMaterial(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") return mp.lamina?.aco?.trim() || "Sem aço configurado";
   if (mp.tipo_material === "bloco") return mp.bloco?.tipo?.trim() || "Sem tipo configurado";
@@ -2032,16 +2036,17 @@ function OcCriarModal({
   const [fornecedorId, setFornecedorId] = useState("");
   const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial | "">("");
   const [agrupador, setAgrupador] = useState("");
+  const [buscaMateria, setBuscaMateria] = useState("");
   const [descontoPercentual, setDescontoPercentual] = useState("0");
   const [observacao, setObservacao] = useState("");
-  const [linhas, setLinhas] = useState<LinhaCriarOc[]>(() => [
-    { key: `${Date.now()}-0`, materia_prima_id: "", quantidade: "1", preco_unitario: "" },
-  ]);
+  const [linhas, setLinhas] = useState<LinhaCriarOc[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [materiasPrimas, setMateriasPrimas] = useState<MateriaPrima[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [materiaPrimaDestacadaId, setMateriaPrimaDestacadaId] = useState("");
+  const destaqueTimeoutRef = useRef<number | null>(null);
 
   const mpById = useMemo(() => new Map(materiasPrimas.map((m) => [m.id, m])), [materiasPrimas]);
   const materiasPrimasDoTipo = useMemo(
@@ -2069,35 +2074,29 @@ function OcCriarModal({
       ),
     [agrupador, materiasPrimasDoTipo],
   );
-  const possuiItensSelecionados = useMemo(
-    () => linhas.some((linha) => linha.materia_prima_id),
-    [linhas],
-  );
+  const possuiItensSelecionados = linhas.length > 0;
   const colunasEspecificasCriacao = useMemo(
     () => getColunasEspecificasMaterial(tipoMaterial),
     [tipoMaterial],
   );
-
-  const opcoesMateria = useMemo(
+  const linhasByMateriaId = useMemo(
+    () => new Map(linhas.map((linha) => [linha.materia_prima_id, linha])),
+    [linhas],
+  );
+  const materiasPrimasCatalogo = useMemo(() => {
+    const buscaNormalizada = normalizarTextoBusca(buscaMateria.trim());
+    return materiasPrimasFiltradas.filter((mp) => {
+      if (!buscaNormalizada) return true;
+      const searchText = `${mp.sku ?? ""} ${mp.nome} ${formatResumoMaterialOpcao(mp)} ${obterAgrupadorMaterial(mp)} ${labelTipoMaterial(mp.tipo_material)}`;
+      return normalizarTextoBusca(searchText).includes(buscaNormalizada);
+    });
+  }, [buscaMateria, materiasPrimasFiltradas]);
+  const resumoContextoCatalogo = useMemo(
     () =>
-      materiasPrimasFiltradas.map((mp) => {
-        const imageUrl =
-          getOptimizedImageUrl(mp.foto_url, {
-            width: 80,
-            height: 80,
-            quality: 72,
-            resize: "cover",
-            fallbackUrl: "",
-          }) || null;
-        return {
-          value: mp.id,
-          label: mp.nome,
-          secondaryLabel: formatResumoMaterialOpcao(mp),
-          searchText: `${mp.nome} ${formatResumoMaterialOpcao(mp)} ${obterAgrupadorMaterial(mp)} ${labelTipoMaterial(mp.tipo_material)}`,
-          imageUrl,
-        };
-      }),
-    [materiasPrimasFiltradas],
+      [tipoMaterial ? labelTipoMaterial(tipoMaterial) : "", agrupador]
+        .filter((valor) => Boolean(valor))
+        .join(" · "),
+    [agrupador, tipoMaterial],
   );
   const opcoesTipoOc = useMemo(
     () =>
@@ -2144,11 +2143,11 @@ function OcCriarModal({
     setFornecedorId("");
     setTipoMaterial("");
     setAgrupador("");
+    setBuscaMateria("");
     setDescontoPercentual("0");
     setObservacao("");
-    setLinhas([
-      { key: `${Date.now()}-0`, materia_prima_id: "", quantidade: "1", preco_unitario: "" },
-    ]);
+    setLinhas([]);
+    setMateriaPrimaDestacadaId("");
 
     let cancelled = false;
     async function load() {
@@ -2171,26 +2170,22 @@ function OcCriarModal({
     };
   }, [open]);
 
+  useEffect(() => {
+    return () => {
+      if (destaqueTimeoutRef.current !== null) {
+        window.clearTimeout(destaqueTimeoutRef.current);
+      }
+    };
+  }, []);
+
   function parseNumero(raw: string): number {
     const v = raw.trim().replace(",", ".");
     const n = Number(v);
     return Number.isFinite(n) ? n : NaN;
   }
 
-  function addLinha() {
-    setLinhas((prev) => [
-      ...prev,
-      {
-        key: `${Date.now()}-${prev.length}`,
-        materia_prima_id: "",
-        quantidade: "1",
-        preco_unitario: "",
-      },
-    ]);
-  }
-
   function removeLinha(key: string) {
-    setLinhas((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)));
+    setLinhas((prev) => prev.filter((l) => l.key !== key));
   }
 
   function updateTipoMaterial(nextTipo: string) {
@@ -2208,12 +2203,53 @@ function OcCriarModal({
       return fornecedorCompativelComTipo(fornecedorAtual, tipoNormalizado) ? current : "";
     });
     setAgrupador("");
+    setBuscaMateria("");
   }
 
   function updateAgrupador(nextAgrupador: string) {
     if (nextAgrupador === agrupador) return;
     setErro("");
     setAgrupador(nextAgrupador);
+  }
+
+  function destacarMateriaPrima(materiaPrimaId: string) {
+    setMateriaPrimaDestacadaId(materiaPrimaId);
+    if (destaqueTimeoutRef.current !== null) {
+      window.clearTimeout(destaqueTimeoutRef.current);
+    }
+    destaqueTimeoutRef.current = window.setTimeout(() => {
+      setMateriaPrimaDestacadaId((current) => (current === materiaPrimaId ? "" : current));
+      destaqueTimeoutRef.current = null;
+    }, 1400);
+  }
+
+  function adicionarMateriaPrima(materiaPrimaId: string) {
+    const mp = mpById.get(materiaPrimaId);
+    if (!mp) return;
+    setErro("");
+    setLinhas((prev) => {
+      const existente = prev.find((linha) => linha.materia_prima_id === materiaPrimaId);
+      if (existente) {
+        const quantidadeAtual = parseNumero(existente.quantidade);
+        const novaQuantidade =
+          Number.isFinite(quantidadeAtual) && quantidadeAtual > 0 ? quantidadeAtual + 1 : 2;
+        return prev.map((linha) =>
+          linha.materia_prima_id === materiaPrimaId
+            ? { ...linha, quantidade: String(novaQuantidade) }
+            : linha,
+        );
+      }
+      return [
+        ...prev,
+        {
+          key: `${Date.now()}-${prev.length}`,
+          materia_prima_id: materiaPrimaId,
+          quantidade: "1",
+          preco_unitario: String(mp.preco_custo ?? ""),
+        },
+      ];
+    });
+    destacarMateriaPrima(materiaPrimaId);
   }
 
   function updateLinha(key: string, patch: Partial<LinhaCriarOc>) {
@@ -2235,8 +2271,7 @@ function OcCriarModal({
       setErro("Selecione o tipo de material da ordem de compra.");
       return;
     }
-    const itensValidos = linhas.filter((l) => l.materia_prima_id);
-    if (itensValidos.length === 0) {
+    if (linhas.length === 0) {
       setErro("Selecione ao menos uma matéria-prima.");
       return;
     }
@@ -2245,7 +2280,7 @@ function OcCriarModal({
       quantidade: number;
       preco_unitario?: number | null;
     }[] = [];
-    for (const l of itensValidos) {
+    for (const l of linhas) {
       const q = parseNumero(l.quantidade);
       if (!Number.isFinite(q) || q <= 0) {
         setErro("Todas as quantidades devem ser maiores que zero.");
@@ -2315,7 +2350,7 @@ function OcCriarModal({
   const totalEstimado = calcularTotalFinalOC(subtotalEstimado, descontoTotalEstimado);
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova ordem de compra" width="920px">
+    <Modal open={open} onClose={onClose} title="Nova ordem de compra" width="1100px">
       <div className="flex flex-col gap-4">
         {erro && (
           <p
@@ -2384,152 +2419,364 @@ function OcCriarModal({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span
-              className="text-xs font-semibold uppercase tracking-wide"
-              style={{ color: "var(--ac-muted)" }}
-            >
-              Itens
-              {tipoMaterial ? ` · ${labelTipoMaterial(tipoMaterial)}` : ""}
-              {agrupador ? ` · ${agrupador}` : ""}
+            <div className="space-y-1">
+              <span
+                className="text-xs font-semibold uppercase tracking-wide"
+                style={{ color: "var(--ac-muted)" }}
+              >
+                Itens
+                {resumoContextoCatalogo ? ` · ${resumoContextoCatalogo}` : ""}
+              </span>
+              <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                Busque no catálogo e adicione os materiais antes de ajustar quantidade e preço.
+              </p>
+            </div>
+            <span className="text-xs font-medium" style={{ color: "var(--ac-muted)" }}>
+              {tipoMaterial
+                ? `${materiasPrimasCatalogo.length} resultado${materiasPrimasCatalogo.length === 1 ? "" : "s"}`
+                : "Escolha o tipo para habilitar o catálogo"}
             </span>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={addLinha}
-              disabled={carregando || !tipoMaterial}
-            >
-              Adicionar linha
-            </Button>
           </div>
 
-          <div
-            className="min-h-0 overflow-auto rounded-lg"
-            style={{
-              maxHeight: "min(40vh, 360px)",
-              border: "1px solid var(--ac-border)",
-              background: "var(--ac-card)",
-            }}
-          >
-            <table className="w-full text-sm table-fixed">
-              <thead>
-                <tr style={{ background: "color-mix(in srgb, var(--ac-border) 40%, transparent)" }}>
-                  <th
-                    className="px-2 py-2 text-left text-xs font-semibold uppercase"
-                    style={{ color: "var(--ac-muted)" }}
+          <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
+            <div
+              className="min-h-0 rounded-lg"
+              style={{
+                border: "1px solid var(--ac-border)",
+                background: "var(--ac-card)",
+              }}
+            >
+              <div
+                className="flex flex-col gap-3 border-b px-4 py-3"
+                style={{ borderColor: "var(--ac-border)" }}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
+                      Catálogo de matérias-primas
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                      {resumoContextoCatalogo || "Defina o contexto para buscar os itens"}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: "var(--ac-muted)" }}>
+                    {materiasPrimasCatalogo.length}{" "}
+                    {materiasPrimasCatalogo.length === 1 ? "item" : "itens"}
+                  </span>
+                </div>
+
+                <input
+                  type="text"
+                  value={buscaMateria}
+                  onChange={(e) => setBuscaMateria(e.target.value)}
+                  disabled={carregando || !tipoMaterial}
+                  placeholder={
+                    tipoMaterial
+                      ? "Buscar por SKU, nome ou detalhe do material"
+                      : "Escolha o tipo primeiro"
+                  }
+                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  style={{
+                    border: "1px solid var(--ac-border)",
+                    background: "var(--ac-bg)",
+                    color: "var(--ac-text)",
+                  }}
+                />
+              </div>
+
+              <div className="max-h-[min(42vh,420px)] overflow-auto p-3">
+                {!tipoMaterial ? (
+                  <div
+                    className="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm"
+                    style={{ borderColor: "var(--ac-border)", color: "var(--ac-muted)" }}
                   >
-                    Matéria-prima
-                  </th>
-                  {colunasEspecificasCriacao.map((coluna) => (
-                    <th
-                      key={coluna.key}
-                      className="px-2 py-2 text-left text-xs font-semibold uppercase"
-                      style={{ color: "var(--ac-muted)" }}
-                    >
-                      {coluna.label}
-                    </th>
-                  ))}
-                  <th
-                    className="px-2 py-2 text-right text-xs font-semibold uppercase w-[100px]"
-                    style={{ color: "var(--ac-muted)" }}
+                    Selecione o tipo de material para habilitar o catálogo.
+                  </div>
+                ) : materiasPrimasCatalogo.length === 0 ? (
+                  <div
+                    className="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm"
+                    style={{ borderColor: "var(--ac-border)", color: "var(--ac-muted)" }}
                   >
-                    Qtd
-                  </th>
-                  <th
-                    className="px-2 py-2 text-right text-xs font-semibold uppercase w-[120px]"
-                    style={{ color: "var(--ac-muted)" }}
-                  >
-                    Preço unit.
-                  </th>
-                  <th className="w-10 px-1 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((l) => (
-                  <tr key={l.key} style={{ borderTop: "1px solid var(--ac-border)" }}>
-                    <td className="px-2 py-2 align-top">
-                      <SearchableSelect
-                        value={l.materia_prima_id}
-                        onChange={(v) => updateLinha(l.key, { materia_prima_id: v })}
-                        options={opcoesMateria}
-                        placeholder={tipoMaterial ? "Escolher…" : "Escolha o tipo primeiro"}
-                        disabled={carregando || !tipoMaterial}
-                        loading={carregando}
-                        emptyMessage={
-                          tipoMaterial
-                            ? agrupador
-                              ? `Nenhuma matéria-prima encontrada para ${agrupador}`
-                              : `Nenhuma matéria-prima encontrada para ${labelTipoMaterial(tipoMaterial)}`
-                            : "Escolha o tipo para carregar as matérias-primas"
-                        }
-                        className="w-full"
-                      />
-                    </td>
-                    {colunasEspecificasCriacao.map((coluna) => {
-                      const mpSelecionada = mpById.get(l.materia_prima_id) ?? null;
+                    {agrupador
+                      ? `Nenhuma matéria-prima encontrada para ${agrupador}.`
+                      : `Nenhuma matéria-prima encontrada para ${labelTipoMaterial(tipoMaterial)}.`}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {materiasPrimasCatalogo.map((mp) => {
+                      const linhaSelecionada = linhasByMateriaId.get(mp.id);
+                      const quantidadeSelecionada = linhaSelecionada
+                        ? parseNumero(linhaSelecionada.quantidade)
+                        : NaN;
+                      const jaSelecionada = Boolean(linhaSelecionada);
                       return (
-                        <td
-                          key={coluna.key}
-                          className="px-2 py-2 align-top text-xs"
-                          style={{ color: "var(--ac-muted)" }}
+                        <div
+                          key={mp.id}
+                          className="rounded-xl border p-3 transition-colors"
+                          style={{
+                            borderColor:
+                              materiaPrimaDestacadaId === mp.id
+                                ? "var(--ac-accent)"
+                                : "var(--ac-border)",
+                            background:
+                              materiaPrimaDestacadaId === mp.id
+                                ? "color-mix(in srgb, var(--ac-accent) 12%, var(--ac-card))"
+                                : "var(--ac-card)",
+                          }}
                         >
-                          <div className="px-2 py-1.5">{coluna.value(mpSelecionada)}</div>
-                        </td>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex items-start justify-between gap-3 flex-wrap">
+                                <div className="min-w-0">
+                                  <p
+                                    className="text-[11px] font-semibold uppercase tracking-wide"
+                                    style={{ color: "var(--ac-muted)" }}
+                                  >
+                                    SKU
+                                  </p>
+                                  <p
+                                    className="text-sm font-semibold"
+                                    style={{ color: "var(--ac-text)" }}
+                                  >
+                                    {mp.sku || "—"}
+                                  </p>
+                                </div>
+                                <span
+                                  className="rounded-full px-2 py-1 text-[11px] font-medium"
+                                  style={{
+                                    background:
+                                      "color-mix(in srgb, var(--ac-border) 40%, transparent)",
+                                    color: "var(--ac-muted)",
+                                  }}
+                                >
+                                  {obterAgrupadorMaterial(mp)}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <p
+                                  className="text-sm font-medium"
+                                  style={{ color: "var(--ac-text)" }}
+                                >
+                                  {mp.nome}
+                                </p>
+                                <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                  {colunasEspecificasCriacao.length > 0
+                                    ? colunasEspecificasCriacao
+                                        .map((coluna) => `${coluna.label}: ${coluna.value(mp)}`)
+                                        .join(" · ")
+                                    : "Material genérico"}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                  Custo atual:{" "}
+                                  <span style={{ color: "var(--ac-text)" }}>
+                                    {fmt(mp.preco_custo ?? 0)}
+                                  </span>
+                                </p>
+                                {jaSelecionada ? (
+                                  <p
+                                    className="text-xs font-medium"
+                                    style={{ color: "var(--ac-accent)" }}
+                                  >
+                                    Na ordem:{" "}
+                                    {fmtQtd(
+                                      Number.isFinite(quantidadeSelecionada)
+                                        ? quantidadeSelecionada
+                                        : 0,
+                                    )}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant={jaSelecionada ? "secondary" : "primary"}
+                              onClick={() => adicionarMateriaPrima(mp.id)}
+                              disabled={carregando}
+                              className="shrink-0"
+                            >
+                              {jaSelecionada ? "Adicionar +1" : "Adicionar"}
+                            </Button>
+                          </div>
+                        </div>
                       );
                     })}
-                    <td className="px-2 py-2 align-top">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={l.quantidade}
-                        onChange={(e) => updateLinha(l.key, { quantidade: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded text-sm text-right"
-                        style={{
-                          border: "1px solid var(--ac-border)",
-                          background: "var(--ac-bg)",
-                          color: "var(--ac-text)",
-                        }}
-                      />
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={l.preco_unitario}
-                        onChange={(e) => updateLinha(l.key, { preco_unitario: e.target.value })}
-                        placeholder="Custo MP"
-                        className="w-full px-2 py-1.5 rounded text-sm text-right"
-                        style={{
-                          border: "1px solid var(--ac-border)",
-                          background: "var(--ac-bg)",
-                          color: "var(--ac-text)",
-                        }}
-                      />
-                    </td>
-                    <td className="px-1 py-2 align-top text-center">
-                      <button
-                        type="button"
-                        title="Remover linha"
-                        disabled={linhas.length <= 1}
-                        onClick={() => removeLinha(l.key)}
-                        className="p-1.5 rounded-lg disabled:opacity-40"
-                        style={{ color: "#dc2626" }}
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          className="size-4"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div
+              className="min-h-0 rounded-lg"
+              style={{
+                border: "1px solid var(--ac-border)",
+                background: "var(--ac-card)",
+              }}
+            >
+              <div
+                className="flex items-center justify-between gap-2 border-b px-4 py-3"
+                style={{ borderColor: "var(--ac-border)" }}
+              >
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
+                    Itens da ordem
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                    Ajuste quantidade e preço dos itens adicionados.
+                  </p>
+                </div>
+                <span className="text-xs font-medium" style={{ color: "var(--ac-muted)" }}>
+                  {linhas.length} {linhas.length === 1 ? "item" : "itens"}
+                </span>
+              </div>
+
+              <div className="max-h-[min(42vh,420px)] overflow-auto p-3">
+                {linhas.length === 0 ? (
+                  <div
+                    className="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm"
+                    style={{ borderColor: "var(--ac-border)", color: "var(--ac-muted)" }}
+                  >
+                    Nenhum item adicionado.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {linhas.map((l) => {
+                      const mpSelecionada = mpById.get(l.materia_prima_id) ?? null;
+                      const quantidade = parseNumero(l.quantidade);
+                      const precoRaw = l.preco_unitario.trim();
+                      const precoUnitario =
+                        precoRaw !== "" ? parseNumero(precoRaw) : (mpSelecionada?.preco_custo ?? 0);
+                      const subtotalItem =
+                        Number.isFinite(quantidade) &&
+                        quantidade > 0 &&
+                        Number.isFinite(precoUnitario)
+                          ? quantidade * precoUnitario
+                          : NaN;
+                      return (
+                        <div
+                          key={l.key}
+                          className="rounded-xl border p-3 transition-colors"
+                          style={{
+                            borderColor:
+                              materiaPrimaDestacadaId === l.materia_prima_id
+                                ? "var(--ac-accent)"
+                                : "var(--ac-border)",
+                            background:
+                              materiaPrimaDestacadaId === l.materia_prima_id
+                                ? "color-mix(in srgb, var(--ac-accent) 12%, var(--ac-card))"
+                                : "var(--ac-card)",
+                          }}
                         >
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14H6L5 6" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <p
+                                  className="text-[11px] font-semibold uppercase tracking-wide"
+                                  style={{ color: "var(--ac-muted)" }}
+                                >
+                                  SKU {mpSelecionada?.sku ?? "—"}
+                                </p>
+                                <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                  Subtotal:{" "}
+                                  <span style={{ color: "var(--ac-text)" }}>
+                                    {Number.isFinite(subtotalItem) ? fmt(subtotalItem) : "—"}
+                                  </span>
+                                </p>
+                              </div>
+                              <p
+                                className="text-sm font-medium"
+                                style={{ color: "var(--ac-text)" }}
+                              >
+                                {mpSelecionada?.nome ?? "Item sem nome"}
+                              </p>
+                              <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                {colunasEspecificasCriacao.length > 0
+                                  ? colunasEspecificasCriacao
+                                      .map(
+                                        (coluna) =>
+                                          `${coluna.label}: ${coluna.value(mpSelecionada)}`,
+                                      )
+                                      .join(" · ")
+                                  : "Material genérico"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              title="Remover item"
+                              onClick={() => removeLinha(l.key)}
+                              className="p-1.5 rounded-lg"
+                              style={{ color: "#dc2626" }}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                className="size-4"
+                              >
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14H6L5 6" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <label
+                                className="text-[11px] font-semibold uppercase tracking-wide"
+                                style={{ color: "var(--ac-muted)" }}
+                              >
+                                Quantidade
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={l.quantidade}
+                                onChange={(e) => updateLinha(l.key, { quantidade: e.target.value })}
+                                className="w-full rounded-lg px-3 py-2 text-sm text-right"
+                                style={{
+                                  border: "1px solid var(--ac-border)",
+                                  background: "var(--ac-bg)",
+                                  color: "var(--ac-text)",
+                                }}
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label
+                                className="text-[11px] font-semibold uppercase tracking-wide"
+                                style={{ color: "var(--ac-muted)" }}
+                              >
+                                Preço unit.
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={l.preco_unitario}
+                                onChange={(e) =>
+                                  updateLinha(l.key, { preco_unitario: e.target.value })
+                                }
+                                placeholder="Custo MP"
+                                className="w-full rounded-lg px-3 py-2 text-sm text-right"
+                                style={{
+                                  border: "1px solid var(--ac-border)",
+                                  background: "var(--ac-bg)",
+                                  color: "var(--ac-text)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-1.5 shrink-0">
