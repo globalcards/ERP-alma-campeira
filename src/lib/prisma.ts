@@ -10,6 +10,6 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
-}
+// Em `next start`, múltiplos módulos SSR podem compartilhar o mesmo processo.
+// Reusar o client global evita abrir pools paralelos desnecessários.
+globalForPrisma.prisma = prisma

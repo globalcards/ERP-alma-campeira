@@ -19,15 +19,20 @@ import {
   fetchUsuariosRegistroOC,
 } from "@/lib/cache/list-data";
 
+const ENABLE_LAYOUT_CACHE_WARMUP =
+  process.env.ERP_WARM_CACHE_ON_LAYOUT === "true" || process.env.NODE_ENV !== "production";
+
 /**
- * Aquece em background as caches das principais listas do ERP. Dispara em paralelo
- * sem aguardar — quando o usuário clica num link da sidebar, o `unstable_cache`
- * já está populado e a primeira hit fica tão rápida quanto as subsequentes.
+ * Aquece em background as caches das principais listas do ERP. Em produção fica
+ * desabilitado por padrão porque o burst de queries pode saturar o pool do Prisma
+ * em navegações SSR; habilitar só quando houver folga de conexões.
  *
  * `void` + `.catch(() => {})` para evitar unhandled rejection se uma das queries
  * falhar (a página de destino vai mostrar o erro de verdade, isso aqui é só warmup).
  */
 function aquecerListas(userId: string, perms: ReturnType<typeof permissoesParaVer>) {
+  if (!ENABLE_LAYOUT_CACHE_WARMUP) return;
+
   const fire = (p: Promise<unknown>) => {
     p.catch(() => {});
   };
