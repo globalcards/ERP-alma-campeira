@@ -150,6 +150,11 @@ const SETTINGS_SECTIONS = [
   { id: "config-empresa", label: "Empresa" },
   { id: "config-taxas-lucro", label: "Taxa" },
   { id: "categorias-faca", label: "Facas" },
+  { id: "opcoes-material-aco", label: "Aços" },
+  { id: "opcoes-material-bloco", label: "Blocos" },
+  { id: "opcoes-material-botao", label: "Botões" },
+  { id: "opcoes-material-carimbo", label: "Carimbos" },
+  { id: "opcoes-material-bainha", label: "Bainhas" },
   { id: "categorias-consumivel", label: "Consumíveis" },
   { id: "config-conta", label: "Conta" },
 ] as const;
