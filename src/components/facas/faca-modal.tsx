@@ -9,6 +9,7 @@ import { SmartSelect } from "@/components/ui/smart-select";
 import { MPSelectorModal, type BomItemDraft } from "./mp-selector-modal";
 import { getFacaBOM } from "@/lib/actions/facas";
 import { salvarFacaComFoto } from "@/lib/actions/facas-upload";
+import { labelTipoMaterial } from "@/lib/materiais/tipos";
 import type { Faca, CategoriaFacaDB, MateriaPrima, FacaMateriaPrima } from "@/types";
 import { calcularPrecoVendaFaca } from "@/types";
 import { getOptimizedImageUrl } from "@/lib/images";
@@ -63,6 +64,27 @@ const fiscalVazio: Fiscal = {
   ean_gtin: "",
 };
 
+function normalizeSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
+function getResumoMateriaPrima(mp: MateriaPrima): string {
+  if (mp.tipo_material === "lamina") {
+    return mp.lamina?.aco?.trim() || "Sem aço";
+  }
+  if (mp.tipo_material === "bloco") {
+    return mp.bloco?.tipo?.trim() || "Sem tipo";
+  }
+  if (mp.tipo_material === "bainha") {
+    return mp.bainha?.modelo?.trim() || "Sem modelo";
+  }
+  return "Latão";
+}
+
 export function FacaModal({
   open,
   onClose,
@@ -87,6 +109,7 @@ export function FacaModal({
   const [loading, setLoading] = useState(false);
   const [loadingBom, setLoadingBom] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [buscaGlobalMP, setBuscaGlobalMP] = useState("");
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>("");
   const [fotoDragActive, setFotoDragActive] = useState(false);
@@ -157,6 +180,7 @@ export function FacaModal({
     }
     setFiscalOpen(false);
     setSelectorOpen(false);
+    setBuscaGlobalMP("");
     setErro("");
     setFotoFile(null);
     setFotoPreview("");
@@ -211,6 +235,15 @@ export function FacaModal({
     setErro("");
   }
 
+  function adicionarMateriaPrimaRapida(mpId: string) {
+    setBomItens((prev) => {
+      if (prev.some((item) => item.materia_prima_id === mpId)) return prev;
+      return [...prev, { materia_prima_id: mpId, quantidade: "1" }];
+    });
+    setBuscaGlobalMP("");
+    setErro("");
+  }
+
   const materiasById = useMemo(() => {
     const map = new Map<string, MateriaPrima>();
     for (const mp of materiasPrimas) map.set(mp.id, mp);
@@ -251,6 +284,40 @@ export function FacaModal({
     value: unidade,
     label: unidade,
   }));
+
+  const mpIdsJaAdicionados = useMemo(
+    () => new Set(bomItens.map((item) => item.materia_prima_id)),
+    [bomItens],
+  );
+
+  const resultadosBuscaGlobalMP = useMemo(() => {
+    const termo = normalizeSearch(buscaGlobalMP);
+    if (!termo) return [];
+
+    return materiasPrimas
+      .filter((mp) => {
+        const sku = normalizeSearch(mp.sku);
+        const nome = normalizeSearch(mp.nome);
+        return sku.includes(termo) || nome.includes(termo);
+      })
+      .sort((a, b) => {
+        const aJaAdicionada = mpIdsJaAdicionados.has(a.id) ? 1 : 0;
+        const bJaAdicionada = mpIdsJaAdicionados.has(b.id) ? 1 : 0;
+        if (aJaAdicionada !== bJaAdicionada) return aJaAdicionada - bJaAdicionada;
+
+        const skuCompare = a.sku.localeCompare(b.sku, "pt-BR", {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (skuCompare !== 0) return skuCompare;
+
+        return a.nome.localeCompare(b.nome, "pt-BR", {
+          sensitivity: "base",
+          numeric: true,
+        });
+      })
+      .slice(0, 8);
+  }, [buscaGlobalMP, materiasPrimas, mpIdsJaAdicionados]);
 
   const custoReferencia = useMemo(() => {
     return bomItens.reduce((acc, item) => {
@@ -484,6 +551,101 @@ export function FacaModal({
               </svg>
               Adicionar
             </button>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Input
+              id="busca-global-mp"
+              label="Pesquisa global de matérias-primas"
+              placeholder="Digite SKU ou nome para adicionar mais rápido"
+              value={buscaGlobalMP}
+              onChange={(e) => setBuscaGlobalMP(e.target.value)}
+            />
+
+            {buscaGlobalMP.trim() ? (
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid var(--ac-border)", background: "var(--ac-card)" }}
+              >
+                {resultadosBuscaGlobalMP.length === 0 ? (
+                  <div className="px-3 py-3 text-sm" style={{ color: "var(--ac-muted)" }}>
+                    Nenhuma matéria-prima encontrada para essa busca.
+                  </div>
+                ) : (
+                  <div className="flex max-h-64 flex-col overflow-y-auto">
+                    {resultadosBuscaGlobalMP.map((mp, index) => {
+                      const jaAdicionada = mpIdsJaAdicionados.has(mp.id);
+
+                      return (
+                        <button
+                          key={mp.id}
+                          type="button"
+                          disabled={jaAdicionada}
+                          onClick={() => adicionarMateriaPrimaRapida(mp.id)}
+                          className="flex items-start justify-between gap-3 px-3 py-3 text-left transition-colors"
+                          style={{
+                            borderTop: index > 0 ? "1px solid var(--ac-border)" : undefined,
+                            background: jaAdicionada ? "var(--ac-bg)" : "var(--ac-card)",
+                            color: jaAdicionada ? "var(--ac-muted)" : "var(--ac-text)",
+                            cursor: jaAdicionada ? "not-allowed" : "pointer",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (jaAdicionada) return;
+                            e.currentTarget.style.background =
+                              "color-mix(in srgb, var(--ac-accent) 6%, var(--ac-card))";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (jaAdicionada) return;
+                            e.currentTarget.style.background = "var(--ac-card)";
+                          }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="font-mono text-xs"
+                                style={{ color: jaAdicionada ? "var(--ac-muted)" : "var(--ac-accent)" }}
+                              >
+                                {mp.sku}
+                              </span>
+                              <span className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
+                                {labelTipoMaterial(mp.tipo_material)} · {getResumoMateriaPrima(mp)}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-sm font-medium">{mp.nome}</div>
+                            <div
+                              className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
+                              style={{ color: "var(--ac-muted)" }}
+                            >
+                              <span>
+                                Preço:{" "}
+                                {Number(mp.preco_custo).toLocaleString("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                })}
+                              </span>
+                              <span>Fornecedor: {mp.fornecedor?.nome?.trim() || "Sem fornecedor"}</span>
+                            </div>
+                          </div>
+
+                          <span
+                            className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
+                            style={{
+                              color: jaAdicionada ? "var(--ac-muted)" : "var(--ac-accent)",
+                              background: jaAdicionada
+                                ? "var(--ac-card)"
+                                : "color-mix(in srgb, var(--ac-accent) 12%, transparent)",
+                              border: jaAdicionada ? "1px solid var(--ac-border)" : undefined,
+                            }}
+                          >
+                            {jaAdicionada ? "Já adicionada" : "Adicionar"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
 
           {loadingBom ? (
