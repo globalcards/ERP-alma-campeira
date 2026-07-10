@@ -6,6 +6,7 @@ import { fetchFornecedoresFullList } from "@/lib/cache/list-data";
 import { prisma } from "@/lib/prisma";
 import type {
   Fornecedor,
+  FornecedorDeletePreview,
   OrdemCompraHistoricoResumo,
   StatusOC,
   TipoDocumento,
@@ -19,12 +20,15 @@ async function revalidateFornecedoresList() {
     const userId = await requireAuthenticatedUserId();
     revalidateTag(`list-fornecedores-${userId}`, "max");
     revalidateTag(`list-fornecedores-select-${userId}`, "max");
+    revalidateTag(`list-materias-primas-${userId}`, "max");
   } catch {}
 }
 
 function normalizarTiposMaterial(input: TipoMaterial[] | undefined): TipoMaterial[] {
   const permitidos: TipoMaterial[] = ["lamina", "bloco", "bainha", "latao"];
-  const unicos = new Set((input ?? []).filter((item): item is TipoMaterial => permitidos.includes(item)));
+  const unicos = new Set(
+    (input ?? []).filter((item): item is TipoMaterial => permitidos.includes(item)),
+  );
   return Array.from(unicos);
 }
 
@@ -34,15 +38,23 @@ function fornecedorAtendeTipo(fornecedor: Fornecedor, tipoMaterial?: TipoMateria
   return tipos.length === 0 || tipos.includes(tipoMaterial);
 }
 
-export async function getFornecedores(limit = 50, tipoMaterial?: TipoMaterial): Promise<Fornecedor[]> {
+export async function getFornecedores(
+  limit = 50,
+  tipoMaterial?: TipoMaterial,
+): Promise<Fornecedor[]> {
   const userId = await requireAuthenticatedUserId();
   // Lista compartilhada por boletos, consumíveis e OCs; não deve herdar permissão administrativa.
   const rows = await fetchFornecedoresFullList(userId);
-  return rows.filter((fornecedor) => fornecedorAtendeTipo(fornecedor, tipoMaterial)).slice(0, limit);
+  return rows
+    .filter((fornecedor) => fornecedorAtendeTipo(fornecedor, tipoMaterial))
+    .slice(0, limit);
 }
 
 /** Mantido para compatibilidade — agora idêntico a `getFornecedores`. */
-export async function getFornecedoresSemCache(limit = 50, tipoMaterial?: TipoMaterial): Promise<Fornecedor[]> {
+export async function getFornecedoresSemCache(
+  limit = 50,
+  tipoMaterial?: TipoMaterial,
+): Promise<Fornecedor[]> {
   return getFornecedores(limit, tipoMaterial);
 }
 
@@ -279,17 +291,76 @@ export async function atualizarFornecedor(id: string, input: FornecedorInput) {
   await revalidateFornecedoresList();
 }
 
-export async function deletarFornecedor(id: string) {
+export async function getFornecedorDeletePreview(id: string): Promise<FornecedorDeletePreview> {
   await assertPermissao("fornecedores", "deletar");
-  const uso = await prisma.materiaPrima.findFirst({
+
+  const materiasPrimas = await prisma.materiaPrima.findMany({
     where: { fornecedorId: id },
-    select: { id: true },
+    select: {
+      id: true,
+      nome: true,
+      sku: true,
+      facaLinks: {
+        select: { id: true },
+        take: 1,
+      },
+    },
   });
 
-  if (uso) {
-    throw new Error("Este fornecedor possui matérias-primas vinculadas e não pode ser excluído.");
-  }
+  const preservadas = materiasPrimas.filter((mp) => mp.facaLinks.length > 0);
+  const excluiveis = materiasPrimas.length - preservadas.length;
 
-  await prisma.fornecedor.delete({ where: { id } });
+  return {
+    total_materias_primas: materiasPrimas.length,
+    materias_primas_excluiveis: excluiveis,
+    materias_primas_preservadas_por_faca: preservadas.length,
+    exemplos_preservadas: preservadas.slice(0, 5).map((mp) => `${mp.sku} - ${mp.nome}`),
+  };
+}
+
+export async function deletarFornecedor(
+  id: string,
+  options?: { excluirMateriasPrimasSemUso?: boolean },
+) {
+  await assertPermissao("fornecedores", "deletar");
+  await prisma.$transaction(async (tx) => {
+    const materiasPrimas = await tx.materiaPrima.findMany({
+      where: { fornecedorId: id },
+      select: { id: true },
+    });
+
+    const mpIds = materiasPrimas.map((mp) => mp.id);
+    const usedMpIds =
+      mpIds.length > 0
+        ? new Set(
+            (
+              await tx.facaMateriaPrima.findMany({
+                where: { materiaPrimaId: { in: mpIds } },
+                select: { materiaPrimaId: true },
+                distinct: ["materiaPrimaId"],
+              })
+            ).map((row) => row.materiaPrimaId),
+          )
+        : new Set<string>();
+
+    const mpIdsExcluiveis =
+      options?.excluirMateriasPrimasSemUso === true
+        ? mpIds.filter((mpId) => !usedMpIds.has(mpId))
+        : [];
+
+    if (mpIdsExcluiveis.length > 0) {
+      await tx.materiaPrima.deleteMany({
+        where: { id: { in: mpIdsExcluiveis } },
+      });
+    }
+
+    await tx.materiaPrima.updateMany({
+      where: { fornecedorId: id },
+      data: { fornecedorId: null },
+    });
+
+    await tx.fornecedor.delete({ where: { id } });
+  });
+
   await revalidateFornecedoresList();
 }

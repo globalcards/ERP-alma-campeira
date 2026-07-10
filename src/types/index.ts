@@ -69,6 +69,13 @@ export type Fornecedor = {
   created_at: string;
 };
 
+export type FornecedorDeletePreview = {
+  total_materias_primas: number;
+  materias_primas_excluiveis: number;
+  materias_primas_preservadas_por_faca: number;
+  exemplos_preservadas: string[];
+};
+
 export type MateriaPrima = {
   id: string;
   codigo: string;

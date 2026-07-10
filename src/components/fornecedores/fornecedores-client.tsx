@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { FornecedorModal } from "./fornecedor-modal";
-import { deletarFornecedor } from "@/lib/actions/fornecedores";
+import { deletarFornecedor, getFornecedorDeletePreview } from "@/lib/actions/fornecedores";
 import { TIPOS_MATERIAL } from "@/types";
-import type { Fornecedor, TipoMaterial } from "@/types";
+import type { Fornecedor, FornecedorDeletePreview, TipoMaterial } from "@/types";
 import { apenasDigitos, formatarDocumento } from "@/lib/br/documento";
 import { useErpTabs } from "@/components/layout/erp-tabs";
 import { useFornecedores } from "@/lib/query/hooks";
@@ -39,6 +39,9 @@ export function FornecedoresClient({
   const [deletando, setDeletando] = useState<Fornecedor | null>(null);
   const [erroDelete, setErroDelete] = useState("");
   const [loadingDelete, setLoadingDelete] = useState(false);
+  const [loadingDeletePreview, setLoadingDeletePreview] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<FornecedorDeletePreview | null>(null);
+  const [deleteMpSemUso, setDeleteMpSemUso] = useState(true);
   const [busca, setBusca] = useState("");
   const [tipoSelecionado, setTipoSelecionado] = useState<FiltroTipo>("todos");
 
@@ -80,12 +83,47 @@ export function FornecedoresClient({
     setModalAberto(true);
   }
 
+  useEffect(() => {
+    if (!deletando) {
+      setDeletePreview(null);
+      setLoadingDeletePreview(false);
+      setDeleteMpSemUso(true);
+      return;
+    }
+
+    let active = true;
+    setErroDelete("");
+    setDeletePreview(null);
+    setDeleteMpSemUso(true);
+    setLoadingDeletePreview(true);
+
+    getFornecedorDeletePreview(deletando.id)
+      .then((preview) => {
+        if (!active) return;
+        setDeletePreview(preview);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setErroDelete(e instanceof Error ? e.message : "Erro ao analisar exclusão.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingDeletePreview(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [deletando]);
+
   async function confirmarDelete() {
     if (!deletando) return;
     setErroDelete("");
     setLoadingDelete(true);
     try {
-      await deletarFornecedor(deletando.id);
+      await deletarFornecedor(deletando.id, {
+        excluirMateriasPrimasSemUso: deleteMpSemUso,
+      });
       setDeletando(null);
       refreshActiveTab();
     } catch (e: unknown) {
@@ -334,7 +372,6 @@ export function FornecedoresClient({
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeletando(f);
-                            setErroDelete("");
                           }}
                           className="p-1.5 rounded-lg transition-colors"
                           style={{ color: "var(--ac-muted)" }}
@@ -529,6 +566,73 @@ export function FornecedoresClient({
             Tem certeza que deseja excluir <strong>{deletando?.nome}</strong>? Esta ação não pode
             ser desfeita.
           </p>
+          {loadingDeletePreview && (
+            <div
+              className="rounded-lg px-3 py-2 text-sm"
+              style={{ color: "var(--ac-muted)", background: "var(--ac-bg)" }}
+            >
+              Analisando matérias-primas vinculadas ao fornecedor...
+            </div>
+          )}
+          {!loadingDeletePreview &&
+            deletePreview &&
+            deletePreview.total_materias_primas > 0 && (
+              <div
+                className="rounded-lg px-3 py-3 text-sm flex flex-col gap-3"
+                style={{ color: "var(--ac-text)", background: "var(--ac-bg)" }}
+              >
+                <div className="flex flex-col gap-1">
+                  <p>
+                    Este fornecedor possui{" "}
+                    <strong>{deletePreview.total_materias_primas}</strong>{" "}
+                    {deletePreview.total_materias_primas === 1
+                      ? "matéria-prima vinculada"
+                      : "matérias-primas vinculadas"}
+                    .
+                  </p>
+                  <p style={{ color: "var(--ac-muted)" }}>
+                    Neste modo, as matérias-primas usadas em facas serão preservadas e apenas
+                    ficarão sem fornecedor.
+                  </p>
+                </div>
+
+                {deletePreview.materias_primas_excluiveis > 0 && (
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deleteMpSemUso}
+                      onChange={(e) => setDeleteMpSemUso(e.target.checked)}
+                      className="mt-0.5 size-4"
+                    />
+                    <span>
+                      Excluir também{" "}
+                      <strong>{deletePreview.materias_primas_excluiveis}</strong>{" "}
+                      {deletePreview.materias_primas_excluiveis === 1
+                        ? "matéria-prima"
+                        : "matérias-primas"}{" "}
+                      deste fornecedor que não estão em facas.
+                    </span>
+                  </label>
+                )}
+
+                {deletePreview.materias_primas_preservadas_por_faca > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <p style={{ color: "var(--ac-muted)" }}>
+                      <strong>{deletePreview.materias_primas_preservadas_por_faca}</strong>{" "}
+                      {deletePreview.materias_primas_preservadas_por_faca === 1
+                        ? "matéria-prima será preservada"
+                        : "matérias-primas serão preservadas"}{" "}
+                      porque já estão em facas.
+                    </p>
+                    {deletePreview.exemplos_preservadas.length > 0 && (
+                      <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                        Exemplos: {deletePreview.exemplos_preservadas.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           {erroDelete && (
             <p
               className="text-sm rounded-lg px-3 py-2"
@@ -541,7 +645,12 @@ export function FornecedoresClient({
             <Button variant="secondary" onClick={() => setDeletando(null)}>
               Cancelar
             </Button>
-            <Button variant="danger" loading={loadingDelete} onClick={confirmarDelete}>
+            <Button
+              variant="danger"
+              loading={loadingDelete}
+              onClick={confirmarDelete}
+              disabled={loadingDeletePreview}
+            >
               Excluir
             </Button>
           </div>
