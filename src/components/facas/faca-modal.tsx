@@ -30,7 +30,7 @@ type Props = {
   editando?: Faca | null;
   categorias: CategoriaFacaDB[];
   materiasPrimas: MateriaPrima[];
-  taxasLucro: TaxasLucro;
+  taxasLucro: TaxasLucro | null;
   onSaved?: () => void;
 };
 
@@ -481,40 +481,42 @@ export function FacaModal({
           />
         </div>
 
-        <div
-          className="rounded-xl p-3 grid grid-cols-2 gap-3"
-          style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
-        >
-          <div>
-            <p className="text-xs font-semibold uppercase" style={{ color: "var(--ac-muted)" }}>
-              Custo de produção
-            </p>
-            <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
-              {(custoReferencia + taxasLucro.taxa_producao).toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </p>
-            <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--ac-muted)" }}>
-              Matérias-primas + taxa de produção (R${" "}
-              {taxasLucro.taxa_producao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
-            </p>
+        {taxasLucro ? (
+          <div
+            className="rounded-xl p-3 grid grid-cols-2 gap-3"
+            style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase" style={{ color: "var(--ac-muted)" }}>
+                Custo de produção
+              </p>
+              <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
+                {(custoReferencia + taxasLucro.taxa_producao).toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </p>
+              <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--ac-muted)" }}>
+                Matérias-primas + taxa de produção (R${" "}
+                {taxasLucro.taxa_producao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase" style={{ color: "var(--ac-muted)" }}>
+                Preço de venda calculado
+              </p>
+              <p className="text-sm font-semibold" style={{ color: "var(--ac-accent)" }}>
+                {calcularPrecoVendaFaca(custoReferencia, taxasLucro).toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </p>
+              <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--ac-muted)" }}>
+                Custo x (1 + {taxasLucro.margem_lucro}% margem)
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase" style={{ color: "var(--ac-muted)" }}>
-              Preço de venda calculado
-            </p>
-            <p className="text-sm font-semibold" style={{ color: "var(--ac-accent)" }}>
-              {calcularPrecoVendaFaca(custoReferencia, taxasLucro).toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </p>
-            <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--ac-muted)" }}>
-              Custo x (1 + {taxasLucro.margem_lucro}% margem)
-            </p>
-          </div>
-        </div>
+        ) : null}
 
         {/* ========== SECAO BOM (Materias-Primas) ========== */}
         <div className="flex flex-col gap-2">

@@ -28,9 +28,7 @@ async function FacasPageData() {
   const [facas, categorias, taxasLucro] = await Promise.all([
     getFacas(120),
     getCategoriasFaca(),
-    verLucro
-      ? getTaxasLucroConfig()
-      : Promise.resolve({ taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 }),
+    verLucro ? getTaxasLucroConfig() : Promise.resolve(null),
   ])
   return (
     <div data-nav-content-ready="Facas">

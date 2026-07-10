@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { getFacaDetalhe } from '@/lib/actions/facas'
 import { getMatériasPrimas } from '@/lib/actions/materias-primas'
 import { getCategoriasFaca } from '@/lib/actions/categorias-faca'
+import { getTaxasLucroConfig } from '@/lib/actions/app-config'
 import { getUsuarios } from '@/lib/actions/usuarios'
 import { getPermissoesEfetivas, requireAuthenticatedUserId } from '@/lib/auth'
 import { FacaDetalheClient } from '@/components/facas/faca-detalhe-client'
@@ -25,10 +26,13 @@ async function FacaDetalhePageData({ id }: { id: string }) {
   const perms = await getPermissoesEfetivas()
   if (!perms.facas.ver) redirect('/')
 
-  const [detalhe, materiasPrimas, categorias, todosUsuarios, usuarioAtualId] = await Promise.all([
+  const verLucro = perms.lucro.ver
+  const [detalhe, materiasPrimas, categorias, taxasLucro, todosUsuarios, usuarioAtualId] =
+    await Promise.all([
     getFacaDetalhe(id),
     getMatériasPrimas(200),
     getCategoriasFaca(),
+    verLucro ? getTaxasLucroConfig() : Promise.resolve(null),
     getUsuarios(200),
     requireAuthenticatedUserId(),
   ])
@@ -45,6 +49,7 @@ async function FacaDetalhePageData({ id }: { id: string }) {
         categorias={categorias}
         perm={perm}
         verPrecoVenda={perms.preco_venda.ver}
+        taxasLucro={taxasLucro}
         usuarios={usuarios}
         usuarioAtualId={usuarioAtualId}
         permEditarMovAdmin={permEditarMovAdmin}

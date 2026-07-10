@@ -36,7 +36,7 @@ type Props = {
   categorias: CategoriaFacaDB[];
   perm: Perm;
   verPrecoVenda: boolean;
-  taxasLucro?: TaxasLucro;
+  taxasLucro?: TaxasLucro | null;
   usuarios?: { id: string; nome: string }[];
   /** Id do utilizador em sessão (auth = perfil); usado para pré-selecionar "Registrado por". */
   usuarioAtualId?: string;
@@ -944,7 +944,7 @@ export function FacaDetalheClient({
         editando={faca}
         categorias={categorias}
         materiasPrimas={materiasPrimas}
-        taxasLucro={taxasLucro ?? { taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 }}
+        taxasLucro={taxasLucro ?? null}
         onSaved={refreshActiveTab}
       />
 

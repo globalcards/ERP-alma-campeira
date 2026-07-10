@@ -42,7 +42,7 @@ type Props = {
   perm: Perm;
   verPrecoVenda: boolean;
   verLucro: boolean;
-  taxasLucro: TaxasLucro;
+  taxasLucro: TaxasLucro | null;
 };
 
 export function FacasClient({
@@ -132,7 +132,10 @@ export function FacasClient({
         case "preco_venda":
           return (a.preco_venda - b.preco_venda) * dir;
         case "lucro":
-          return (lucroUnitarioFaca(a, taxasLucro) - lucroUnitarioFaca(b, taxasLucro)) * dir;
+          return (
+            lucroUnitarioFaca(a, taxasLucro ?? { taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 }) -
+            lucroUnitarioFaca(b, taxasLucro ?? { taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 })
+          ) * dir;
         case "estoque": {
           const diff = a.estoque_atual - b.estoque_atual;
           if (diff !== 0) return diff * dir;
@@ -633,13 +636,18 @@ export function FacasClient({
                         className="px-4 py-3 text-right tabular-nums font-semibold"
                         style={{
                           color:
-                            lucroUnitarioFaca(faca, taxasLucro) < 0 ? "#dc2626" : "var(--ac-text)",
+                            lucroUnitarioFaca(
+                              faca,
+                              taxasLucro ?? { taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 },
+                            ) < 0
+                              ? "#dc2626"
+                              : "var(--ac-text)",
                         }}
                       >
-                        {lucroUnitarioFaca(faca, taxasLucro).toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
+                        {lucroUnitarioFaca(
+                          faca,
+                          taxasLucro ?? { taxa_producao: 0, margem_lucro: 0, taxa_comissao: 0 },
+                        ).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
                     )}
                     <td
