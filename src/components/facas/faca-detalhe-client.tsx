@@ -21,6 +21,7 @@ import type {
   CategoriaFacaDB,
   MateriaPrima,
 } from "@/types";
+import { custoProducaoFaca } from "@/types";
 import type { FacaDetalheData } from "@/lib/actions/facas";
 import { useErpTabs } from "@/components/layout/erp-tabs";
 import { useFacaDetalhe, useMateriasPrimas } from "@/lib/query/hooks";
@@ -123,6 +124,11 @@ export function FacaDetalheClient({
       return acc + preco * item.quantidade;
     }, 0);
   }, [bom]);
+
+  const custoProducaoTotal = useMemo(() => {
+    if (!taxasLucro) return custoTotal;
+    return custoProducaoFaca(custoTotal, taxasLucro.taxa_producao);
+  }, [custoTotal, taxasLucro]);
 
   const mpFotoThumbById = useMemo(() => {
     const map = new Map<string, string>();
@@ -393,8 +399,18 @@ export function FacaDetalheClient({
               </div>
               {custoTotal > 0 && (
                 <span className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                  Preço de custo (somatório MP):{" "}
-                  {custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  Custo de produção:{" "}
+                  {custoProducaoTotal.toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
+                  {taxasLucro ? (
+                    <> · MP {custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} + fixo{" "}
+                    {taxasLucro.taxa_producao.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}</>
+                  ) : null}
                 </span>
               )}
             </div>
@@ -600,19 +616,29 @@ export function FacaDetalheClient({
                     style={{ borderTop: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
                   >
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       className="px-4 py-2.5 text-right text-xs font-semibold uppercase"
                       style={{ color: "var(--ac-muted)" }}
                     >
-                      Custo total por faca
+                      Custo total por faca ={" "}
+                      <span style={{ color: "var(--ac-text)" }}>
+                        {custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </span>{" "}
+                      + produção ={" "}
+                      <span style={{ color: "var(--ac-text)" }}>
+                        {(taxasLucro?.taxa_producao ?? 0).toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </span>{" "}
+                      total ={" "}
+                      <span style={{ color: "var(--ac-text)" }}>
+                        {custoProducaoTotal.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </span>
                     </td>
-                    <td
-                      className="px-4 py-2.5 text-right tabular-nums font-bold"
-                      style={{ color: "var(--ac-text)" }}
-                    >
-                      {custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </td>
-                    <td></td>
                   </tr>
                 </tfoot>
               </table>

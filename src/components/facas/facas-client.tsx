@@ -8,6 +8,7 @@ import { FacaModal } from "./faca-modal";
 import { deletarFaca, type DeletarFacaModo } from "@/lib/actions/facas";
 import { BadgeEstoque } from "@/components/ui/badge-estoque";
 import {
+  custoProducaoFaca,
   statusEstoqueFaca,
   type Faca,
   type CategoriaFacaDB,
@@ -73,6 +74,9 @@ export function FacasClient({
     }
     return map;
   }, [categorias]);
+
+  const custoExibido = (faca: Faca) =>
+    taxasLucro ? custoProducaoFaca(Number(faca.preco_custo ?? 0), taxasLucro.taxa_producao) : Number(faca.preco_custo ?? 0);
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Faca | null>(null);
   const [deletando, setDeletando] = useState<Faca | null>(null);
@@ -128,7 +132,7 @@ export function FacasClient({
         case "categoria":
           return a.categoria.localeCompare(b.categoria, "pt-BR", { sensitivity: "base" }) * dir;
         case "preco_custo":
-          return ((a.preco_custo ?? 0) - (b.preco_custo ?? 0)) * dir;
+          return (custoExibido(a) - custoExibido(b)) * dir;
         case "preco_venda":
           return (a.preco_venda - b.preco_venda) * dir;
         case "lucro":
@@ -386,7 +390,7 @@ export function FacasClient({
                   }}
                 >
                   <span className="inline-flex w-full items-center justify-end gap-1">
-                    Preço Custo
+                    Custo Produção
                     <span
                       style={{
                         opacity: ordenacao.coluna === "preco_custo" ? 1 : 0.3,
@@ -615,7 +619,7 @@ export function FacasClient({
                       className="px-4 py-3 text-right tabular-nums font-semibold"
                       style={{ color: "var(--ac-text)" }}
                     >
-                      {(faca.preco_custo ?? 0).toLocaleString("pt-BR", {
+                      {custoExibido(faca).toLocaleString("pt-BR", {
                         style: "currency",
                         currency: "BRL",
                       })}
