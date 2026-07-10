@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SmartSelect } from "@/components/ui/smart-select";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 import { DateInputBR } from "@/components/ui/date-input-br";
+import { ClienteModal } from "@/components/clientes/cliente-modal";
 import { criarVenda, atualizarVenda } from "@/lib/actions/vendas";
 import type { ParcelaInput } from "@/lib/actions/boletos";
 import { STATUS_PEDIDO, FORMAS_PAGAMENTO_OC } from "@/types";
@@ -94,6 +95,8 @@ export function VendaFormModal({
   onSaved,
 }: Props) {
   const [clienteId, setClienteId] = useState("");
+  const [clientesDisponiveis, setClientesDisponiveis] = useState<Cliente[]>(clientes);
+  const [clienteModalAberto, setClienteModalAberto] = useState(false);
   const [vendedorId, setVendedorId] = useState("");
   const [dataPedido, setDataPedido] = useState(today());
   const [status, setStatus] = useState<StatusPedido>("em_espera");
@@ -134,12 +137,12 @@ export function VendaFormModal({
   );
   const opcoesCliente = useMemo(
     () =>
-      clientes.map((cliente) => ({
+      clientesDisponiveis.map((cliente) => ({
         value: cliente.id,
         label: cliente.nome,
         searchText: `${cliente.nome} ${cliente.cidade ?? ""} ${cliente.estado ?? ""}`,
       })),
-    [clientes],
+    [clientesDisponiveis],
   );
   const opcoesVendedor = useMemo(
     () =>
@@ -167,6 +170,10 @@ export function VendaFormModal({
       ),
     [],
   );
+
+  useEffect(() => {
+    setClientesDisponiveis(clientes);
+  }, [clientes]);
 
   useEffect(() => {
     if (!open) return;
@@ -356,6 +363,16 @@ export function VendaFormModal({
     void executarSalvar(false);
   }
 
+  function handleClienteSalvo(cliente?: Cliente) {
+    if (!cliente) return;
+    setClientesDisponiveis((prev) => {
+      const semDuplicado = prev.filter((item) => item.id !== cliente.id);
+      return [...semDuplicado, cliente].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    });
+    setClienteId(cliente.id);
+    setClienteModalAberto(false);
+  }
+
   async function executarSalvar(confirmarEstoqueInsuficiente: boolean) {
     setAvisoEstoqueInsuficiente(null);
 
@@ -418,13 +435,14 @@ export function VendaFormModal({
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={editando ? `Editar venda ${editando.codigo}` : "Nova venda"}
-      width="1000px"
-    >
-      <div className="flex flex-col gap-5">
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={editando ? `Editar venda ${editando.codigo}` : "Nova venda"}
+        width="1000px"
+      >
+        <div className="flex flex-col gap-5">
         {/* Linha 1: Cliente + Vendedor */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
@@ -435,29 +453,52 @@ export function VendaFormModal({
               >
                 Cliente
               </label>
-              <Link
-                href="/clientes"
-                onClick={onClose}
-                className="flex items-center gap-1 text-xs font-medium transition-colors"
-                style={{ color: "var(--ac-muted)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.8}
-                  className="size-3.5 shrink-0"
-                  aria-hidden
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setClienteModalAberto(true)}
+                  className="flex items-center gap-1 text-xs font-medium transition-colors"
+                  style={{ color: "var(--ac-muted)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
                 >
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                Gerenciar clientes
-              </Link>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    className="size-3.5 shrink-0"
+                    aria-hidden
+                  >
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                  Novo cliente
+                </button>
+                <Link
+                  href="/clientes"
+                  onClick={onClose}
+                  className="flex items-center gap-1 text-xs font-medium transition-colors"
+                  style={{ color: "var(--ac-muted)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ac-accent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ac-muted)")}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    className="size-3.5 shrink-0"
+                    aria-hidden
+                  >
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  Gerenciar clientes
+                </Link>
+              </div>
             </div>
             <SmartSelect
               value={clienteId}
@@ -1252,17 +1293,25 @@ export function VendaFormModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          {!avisoEstoqueInsuficiente && (
-            <Button loading={loading} onClick={salvar}>
-              {editando ? "Salvar" : "Criar venda"}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={onClose} disabled={loading}>
+              Cancelar
             </Button>
-          )}
+            {!avisoEstoqueInsuficiente && (
+              <Button loading={loading} onClick={salvar}>
+                {editando ? "Salvar" : "Criar venda"}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+
+      <ClienteModal
+        open={clienteModalAberto}
+        onClose={() => setClienteModalAberto(false)}
+        editando={null}
+        onSaved={handleClienteSalvo}
+      />
+    </>
   );
 }

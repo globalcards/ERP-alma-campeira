@@ -17,7 +17,7 @@ type Props = {
   open: boolean
   onClose: () => void
   editando: Cliente | null
-  onSaved?: () => void
+  onSaved?: (cliente?: Cliente) => void
 }
 
 const ESTADOS_BR = SIGLAS_UF
@@ -226,10 +226,10 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
         indicador_ie: indicadorIe,
         codigo_municipio_ibge: codigoIbge,
       }
+      const clienteSalvo = editando ? undefined : await criarCliente(input)
       if (editando) await atualizarCliente(editando.id, input)
-      else await criarCliente(input)
       onClose()
-      onSaved?.()
+      onSaved?.(clienteSalvo ?? editando ?? undefined)
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao salvar.')
     } finally {

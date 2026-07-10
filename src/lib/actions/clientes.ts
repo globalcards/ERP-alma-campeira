@@ -4,7 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { assertPermissao, requireAuthenticatedUserId } from '@/lib/auth'
 import { fetchClientesList } from '@/lib/cache/list-data'
 import { prisma } from '@/lib/prisma'
-import { mapPedidoHistoricoResumo } from '@/lib/prisma-auth-mappers'
+import { mapCliente, mapPedidoHistoricoResumo } from '@/lib/prisma-auth-mappers'
 import type { Cliente, PedidoHistoricoResumo, StatusPedido, TipoDocumento } from '@/types'
 import { apenasDigitos } from '@/lib/br/documento'
 import { validarCamposObrigatoriosCliente } from '@/lib/br/validar-cadastro-parceiro'
@@ -124,10 +124,10 @@ function normalizarClientePayload(input: ClienteInput) {
   }
 }
 
-export async function criarCliente(input: ClienteInput) {
+export async function criarCliente(input: ClienteInput): Promise<Cliente> {
   await assertPermissao('clientes', 'criar')
   const row = normalizarClientePayload(input)
-  await prisma.cliente.create({
+  const created = await prisma.cliente.create({
     data: {
       nome: row.nome,
       tipo: row.tipo,
@@ -149,6 +149,7 @@ export async function criarCliente(input: ClienteInput) {
     },
   })
   await revalidateClientesList()
+  return mapCliente(created)
 }
 
 export async function atualizarCliente(id: string, input: ClienteInput) {
