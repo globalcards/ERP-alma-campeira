@@ -46,9 +46,9 @@ async function countUsoOpcaoMaterial(
   nome: string,
 ): Promise<number> {
   if (tipo === 'aco') return tx.materialLamina.count({ where: { aco: nome } })
-  if (tipo === 'carimbo') return tx.materialLamina.count({ where: { carimbo: nome } })
+  if (tipo === 'carimbo') return tx.ordemCompraItem.count({ where: { carimboFornecedor: nome } })
   if (tipo === 'bloco') return tx.materialBloco.count({ where: { tipo: nome } })
-  if (tipo === 'botao') return tx.materialBainha.count({ where: { botao: nome } })
+  if (tipo === 'botao') return tx.ordemCompraItem.count({ where: { botaoFornecedor: nome } })
   return tx.materialBainha.count({ where: { modelo: nome } })
 }
 
@@ -64,9 +64,9 @@ async function cascadeRenameOpcaoMaterial(
     return
   }
   if (tipo === 'carimbo') {
-    await tx.materialLamina.updateMany({
-      where: { carimbo: nomeAnterior },
-      data: { carimbo: nomeNovo },
+    await tx.ordemCompraItem.updateMany({
+      where: { carimboFornecedor: nomeAnterior },
+      data: { carimboFornecedor: nomeNovo },
     })
     return
   }
@@ -75,9 +75,9 @@ async function cascadeRenameOpcaoMaterial(
     return
   }
   if (tipo === 'botao') {
-    await tx.materialBainha.updateMany({
-      where: { botao: nomeAnterior },
-      data: { botao: nomeNovo },
+    await tx.ordemCompraItem.updateMany({
+      where: { botaoFornecedor: nomeAnterior },
+      data: { botaoFornecedor: nomeNovo },
     })
     return
   }

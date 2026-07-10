@@ -330,7 +330,6 @@ model FornecedorTipoMaterial {
 model MaterialLamina {
   materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
   aco            String?
-  carimbo        String?
   materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
 
   @@map("materiais_laminas")
@@ -349,7 +348,6 @@ model MaterialBainha {
   materiaPrimaId String       @id @map("materia_prima_id") @db.Uuid
   polegadas      String?
   modelo         String?
-  botao          String?
   materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
 
   @@map("materiais_bainhas")
@@ -491,6 +489,8 @@ model OrdemCompraItem {
   quantidadeVendida   Decimal      @default(0) @map("quantidade_vendida") @db.Decimal(14, 4)
   quantidadeAdicional Decimal      @default(0) @map("quantidade_adicional") @db.Decimal(14, 4)
   precoUnitario       Decimal?     @map("preco_unitario") @db.Decimal(14, 2)
+  carimboFornecedor   String?      @map("carimbo_fornecedor")
+  botaoFornecedor     String?      @map("botao_fornecedor")
   ordemCompra         OrdemCompra  @relation(fields: [ordemCompraId], references: [id], onDelete: Cascade)
   materiaPrima        MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Restrict)
 

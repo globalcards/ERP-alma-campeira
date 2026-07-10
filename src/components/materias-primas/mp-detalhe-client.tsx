@@ -39,10 +39,7 @@ const tipoMovLabel: Record<string, { label: string; color: string; bg: string }>
 
 function renderDetalhesTipo(mp: MPDetalheData["mp"]) {
   if (mp.tipo_material === "lamina") {
-    return [
-      { label: "Aço", value: mp.lamina?.aco },
-      { label: "Carimbo", value: mp.lamina?.carimbo },
-    ];
+    return [{ label: "Aço", value: mp.lamina?.aco }];
   }
   if (mp.tipo_material === "bloco") {
     return [
@@ -54,7 +51,6 @@ function renderDetalhesTipo(mp: MPDetalheData["mp"]) {
     return [
       { label: "Polegadas", value: mp.bainha?.polegadas },
       { label: "Modelo", value: mp.bainha?.modelo },
-      { label: "Botão", value: mp.bainha?.botao },
     ];
   }
   return [];

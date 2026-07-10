@@ -165,14 +165,6 @@ const BULK_LAMINA_COLUMNS: BulkColumn[] = [
     optionType: "aco",
     minWidth: 170,
   },
-  {
-    field: "lamina_carimbo",
-    label: "Carimbo",
-    placeholder: "Selecione um carimbo",
-    kind: "select",
-    optionType: "carimbo",
-    minWidth: 170,
-  },
 ];
 
 const BULK_CABO_COLUMNS: BulkColumn[] = [
@@ -208,14 +200,6 @@ const BULK_BAINHA_COLUMNS: BulkColumn[] = [
     kind: "select",
     optionType: "bainha",
     minWidth: 180,
-  },
-  {
-    field: "bainha_botao",
-    label: "Botão",
-    placeholder: "Selecione um botão",
-    kind: "select",
-    optionType: "botao",
-    minWidth: 170,
   },
 ];
 
@@ -277,7 +261,7 @@ function getTipoMaterialMeta(tipoMaterial: TipoMaterial) {
     case "lamina":
       return {
         singular: "Lâmina",
-        descricao: "Cadastre aço, carimbo e demais dados específicos da lâmina.",
+        descricao: "Cadastre aço e demais dados específicos da lâmina.",
       };
     case "bloco":
       return {
@@ -287,7 +271,7 @@ function getTipoMaterialMeta(tipoMaterial: TipoMaterial) {
     case "bainha":
       return {
         singular: "Bainha",
-        descricao: "Cadastre polegadas, modelo e botão para materiais de bainha.",
+        descricao: "Cadastre polegadas e modelo para materiais de bainha.",
       };
     case "latao":
       return {
@@ -610,12 +594,10 @@ export function MPModal({
       const estoqueAtualText = row.estoque_atual.trim();
       const estoqueMinimoText = row.estoque_minimo.trim();
       const laminaAco = row.lamina_aco.trim();
-      const laminaCarimbo = row.lamina_carimbo.trim();
       const blocoTipo = row.bloco_tipo.trim();
       const blocoCor = row.bloco_cor.trim();
       const bainhaPolegadas = row.bainha_polegadas.trim();
       const bainhaModelo = row.bainha_modelo.trim();
-      const bainhaBotao = row.bainha_botao.trim();
 
       const missing: string[] = [];
       if (!sku) missing.push("sku");
@@ -666,7 +648,6 @@ export function MPModal({
             tipoMaterialAtual === "lamina"
               ? {
                   aco: laminaAco || null,
-                  carimbo: laminaCarimbo || null,
                 }
               : null,
           bloco:
@@ -681,7 +662,6 @@ export function MPModal({
               ? {
                   polegadas: bainhaPolegadas || null,
                   modelo: bainhaModelo || null,
-                  botao: bainhaBotao || null,
                 }
               : null,
         },
@@ -806,10 +786,8 @@ export function MPModal({
     fornecedorAtendeTipo(fornecedor, tipoMaterialAtual),
   );
   const opcoesAco = getOpcoesSelect(opcoesMateriais.aco, form.lamina_aco);
-  const opcoesCarimbo = getOpcoesSelect(opcoesMateriais.carimbo, form.lamina_carimbo);
   const opcoesBloco = getOpcoesSelect(opcoesMateriais.bloco, form.bloco_tipo);
   const opcoesBainha = getOpcoesSelect(opcoesMateriais.bainha, form.bainha_modelo);
-  const opcoesBotao = getOpcoesSelect(opcoesMateriais.botao, form.bainha_botao);
   const opcoesFornecedor = fornecedoresCompativeis.map((fornecedor) => ({
     value: fornecedor.id,
     label: fornecedor.nome,
@@ -979,26 +957,6 @@ export function MPModal({
                     </p>
                   )}
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <SmartSelect
-                    id="lamina_carimbo"
-                    label="Carimbo"
-                    value={form.lamina_carimbo}
-                    onChange={(value) => set("lamina_carimbo", value)}
-                    options={opcoesCarimbo}
-                    placeholder="Selecione um carimbo"
-                    showThumbnails={false}
-                  />
-                  {opcoesCarimbo.length === 0 && (
-                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                      Cadastre opções em{" "}
-                      <Link href="/configuracoes#opcoes-material-carimbo" onClick={onClose}>
-                        Configurações &gt; Carimbos
-                      </Link>
-                      .
-                    </p>
-                  )}
-                </div>
               </div>
             )}
 
@@ -1090,26 +1048,6 @@ export function MPModal({
                       Cadastre opções em{" "}
                       <Link href="/configuracoes#opcoes-material-bainha" onClick={onClose}>
                         Configurações &gt; Bainhas
-                      </Link>
-                      .
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <SmartSelect
-                    id="bainha_botao"
-                    label="Botão"
-                    value={form.bainha_botao}
-                    onChange={(value) => set("bainha_botao", value)}
-                    options={opcoesBotao}
-                    placeholder="Selecione um botão"
-                    showThumbnails={false}
-                  />
-                  {opcoesBotao.length === 0 && (
-                    <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                      Cadastre opções em{" "}
-                      <Link href="/configuracoes#opcoes-material-botao" onClick={onClose}>
-                        Configurações &gt; Botões
                       </Link>
                       .
                     </p>

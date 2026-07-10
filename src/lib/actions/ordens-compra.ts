@@ -97,6 +97,48 @@ function normalizarPercentualDesconto(percentual: number): number {
   return percentual
 }
 
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  const normalized = String(value ?? '').trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+async function validarCampoConfiguravelOC(
+  tipoOpcao: 'carimbo' | 'botao',
+  valor: string | null,
+): Promise<void> {
+  if (!valor) return
+  const exists = await prisma.opcaoMaterial.findFirst({
+    where: { tipo: tipoOpcao, nome: valor },
+    select: { id: true },
+  })
+  if (!exists) {
+    throw new Error(`A opção "${valor}" não existe mais nas configurações de materiais.`)
+  }
+}
+
+async function validarCamposFornecedorItemOC(
+  tipoMaterial: TipoMaterial,
+  input: { carimbo_fornecedor?: string | null; botao_fornecedor?: string | null },
+): Promise<{
+  carimbo_fornecedor: string | null
+  botao_fornecedor: string | null
+}> {
+  const carimboFornecedor =
+    tipoMaterial === 'lamina' ? normalizeOptionalText(input.carimbo_fornecedor) : null
+  const botaoFornecedor =
+    tipoMaterial === 'bainha' ? normalizeOptionalText(input.botao_fornecedor) : null
+
+  await Promise.all([
+    validarCampoConfiguravelOC('carimbo', carimboFornecedor),
+    validarCampoConfiguravelOC('botao', botaoFornecedor),
+  ])
+
+  return {
+    carimbo_fornecedor: carimboFornecedor,
+    botao_fornecedor: botaoFornecedor,
+  }
+}
+
 function calcularDescontoTotal(subtotal: number, percentual: number): number {
   const percentualNormalizado = normalizarPercentualDesconto(percentual)
   if (subtotal <= 0 || percentualNormalizado <= 0) return 0
@@ -417,6 +459,8 @@ export type CriarOcItemManual = {
   materia_prima_id: string
   quantidade: number
   preco_unitario?: number | null
+  carimbo_fornecedor?: string | null
+  botao_fornecedor?: string | null
 }
 
 export async function criarOrdemCompraManual(input: {
@@ -452,7 +496,15 @@ export async function criarOrdemCompraManual(input: {
   const descontoPercentual = normalizarPercentualDesconto(Number(input.desconto_percentual ?? 0))
 
   const custoPorId = new Map(mps.map((m) => [m.id, numberFrom(m.precoCusto)]))
-  const agregado = new Map<string, { quantidade: number; subtotal: number }>()
+  const agregado = new Map<
+    string,
+    {
+      quantidade: number
+      subtotal: number
+      carimbo_fornecedor: string | null
+      botao_fornecedor: string | null
+    }
+  >()
 
   for (const row of linhas) {
     const quantidade = Number(row.quantidade)
@@ -469,7 +521,21 @@ export async function criarOrdemCompraManual(input: {
       throw new Error('Preço unitário inválido.')
     }
 
-    const atual = agregado.get(row.materia_prima_id) ?? { quantidade: 0, subtotal: 0 }
+    const camposFornecedor = await validarCamposFornecedorItemOC(tipoMaterialSelecionado, row)
+    const atual = agregado.get(row.materia_prima_id) ?? {
+      quantidade: 0,
+      subtotal: 0,
+      carimbo_fornecedor: camposFornecedor.carimbo_fornecedor,
+      botao_fornecedor: camposFornecedor.botao_fornecedor,
+    }
+    if (
+      atual.carimbo_fornecedor !== camposFornecedor.carimbo_fornecedor ||
+      atual.botao_fornecedor !== camposFornecedor.botao_fornecedor
+    ) {
+      throw new Error(
+        'A mesma matéria-prima não pode ser repetida na OC com carimbo ou botão diferentes.',
+      )
+    }
     atual.quantidade += quantidade
     atual.subtotal += quantidade * precoUnitario
     agregado.set(row.materia_prima_id, atual)
@@ -500,6 +566,8 @@ export async function criarOrdemCompraManual(input: {
             quantidadeAdicional: decimal(value.quantidade),
             quantidade: decimal(value.quantidade),
             precoUnitario: decimal(value.quantidade > 0 ? value.subtotal / value.quantidade : 0),
+            carimboFornecedor: value.carimbo_fornecedor,
+            botaoFornecedor: value.botao_fornecedor,
           })),
         },
       },
@@ -584,6 +652,10 @@ export async function criarItemOrdemCompra(
   ordem_compra_id: string,
   materia_prima_id: string,
   quantidade_adicional: number,
+  camposFornecedor?: {
+    carimbo_fornecedor?: string | null
+    botao_fornecedor?: string | null
+  },
   usuarioRegistroId?: string | null,
 ) {
   await assertPermissao('ordens_compra', 'editar')
@@ -610,6 +682,8 @@ export async function criarItemOrdemCompra(
     )
   }
 
+  const detalhesFornecedor = await validarCamposFornecedorItemOC(tipoMaterialNovo, camposFornecedor ?? {})
+
   await prisma.ordemCompraItem.create({
     data: {
       ordemCompraId: ordem_compra_id,
@@ -618,6 +692,8 @@ export async function criarItemOrdemCompra(
       quantidadeAdicional: decimal(quantidade_adicional),
       quantidade: decimal(quantidade_adicional),
       precoUnitario: mp.precoCusto,
+      carimboFornecedor: detalhesFornecedor.carimbo_fornecedor,
+      botaoFornecedor: detalhesFornecedor.botao_fornecedor,
     },
   })
 
@@ -641,6 +717,41 @@ export async function atualizarObservacaoOC(
   })
 
   await revalidateOCLists()
+}
+
+export async function atualizarCamposFornecedorItemOC(
+  item_id: string,
+  input: {
+    carimbo_fornecedor?: string | null
+    botao_fornecedor?: string | null
+  },
+  usuarioRegistroId?: string | null,
+) {
+  await assertPermissao('ordens_compra', 'editar')
+  const uid = await resolverUsuarioRegistroOC(usuarioRegistroId)
+  const item = await prisma.ordemCompraItem.findUnique({
+    where: { id: item_id },
+    select: {
+      ordemCompraId: true,
+      materiaPrima: { select: { tipoMaterial: true } },
+    },
+  })
+
+  if (!item) throw new Error('Item não encontrado.')
+  const tipoMaterial = normalizarTipoMaterial(item.materiaPrima.tipoMaterial)
+  if (!tipoMaterial) throw new Error('Tipo de material inválido no item da OC.')
+
+  const detalhesFornecedor = await validarCamposFornecedorItemOC(tipoMaterial, input)
+
+  await prisma.ordemCompraItem.update({
+    where: { id: item_id },
+    data: {
+      carimboFornecedor: detalhesFornecedor.carimbo_fornecedor,
+      botaoFornecedor: detalhesFornecedor.botao_fornecedor,
+    },
+  })
+
+  await marcarUltimaAlteracaoOC(item.ordemCompraId, uid)
 }
 
 export async function atualizarDescontoOC(
@@ -796,6 +907,11 @@ export async function salvarAlteracoesOC(input: {
   forma_pagamento?: string | null
   status?: StatusOC
   itensQtd?: { item_id: string; quantidade_adicional: number }[]
+  itensFornecedor?: {
+    item_id: string
+    carimbo_fornecedor?: string | null
+    botao_fornecedor?: string | null
+  }[]
   usuarioRegistroId?: string | null
 }): Promise<void> {
   await assertPermissao('ordens_compra', 'editar')
@@ -803,6 +919,19 @@ export async function salvarAlteracoesOC(input: {
   if (input.itensQtd?.length) {
     for (const { item_id, quantidade_adicional } of input.itensQtd) {
       await atualizarUnidadesAdicionaisItem(item_id, quantidade_adicional, input.usuarioRegistroId)
+    }
+  }
+
+  if (input.itensFornecedor?.length) {
+    for (const item of input.itensFornecedor) {
+      await atualizarCamposFornecedorItemOC(
+        item.item_id,
+        {
+          carimbo_fornecedor: item.carimbo_fornecedor,
+          botao_fornecedor: item.botao_fornecedor,
+        },
+        input.usuarioRegistroId,
+      )
     }
   }
 

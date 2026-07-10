@@ -81,11 +81,11 @@ function getTipoSingular(tipoMaterial: TipoMaterial): string {
 function getTipoDescricao(tipoMaterial: TipoMaterial): string {
   switch (tipoMaterial) {
     case "lamina":
-      return "Aço, carimbo e insumos usados nas lâminas.";
+      return "Aço e insumos usados nas lâminas.";
     case "bloco":
       return "Materiais de bloco com tipo, cor e acabamento.";
     case "bainha":
-      return "Materiais usados em bainhas, com modelo e botão.";
+      return "Materiais usados em bainhas, com modelo e medidas.";
     case "latao":
       return "Itens de latão usando o fluxo genérico de materiais.";
     default:
@@ -141,15 +141,13 @@ function getGrupoMateriaPrima(mp: MateriaPrima): string {
 
 function formatDetalhesTipo(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") {
-    return [mp.lamina?.aco, mp.lamina?.carimbo].filter(Boolean).join(" · ") || "—";
+    return [mp.lamina?.aco].filter(Boolean).join(" · ") || "—";
   }
   if (mp.tipo_material === "bloco") {
     return [mp.bloco?.tipo, mp.bloco?.cor].filter(Boolean).join(" · ") || "—";
   }
   if (mp.tipo_material === "bainha") {
-    return (
-      [mp.bainha?.polegadas, mp.bainha?.modelo, mp.bainha?.botao].filter(Boolean).join(" · ") || "—"
-    );
+    return [mp.bainha?.polegadas, mp.bainha?.modelo].filter(Boolean).join(" · ") || "—";
   }
   return "—";
 }
@@ -166,11 +164,6 @@ function getColunasEspecificas(tipoMaterial: TipoMaterial): Array<{
           key: "aco",
           label: "Aço",
           value: (mp) => mp.lamina?.aco?.trim() || "—",
-        },
-        {
-          key: "carimbo",
-          label: "Carimbo",
-          value: (mp) => mp.lamina?.carimbo?.trim() || "—",
         },
       ];
     case "bloco":
@@ -197,11 +190,6 @@ function getColunasEspecificas(tipoMaterial: TipoMaterial): Array<{
           key: "modelo",
           label: "Modelo",
           value: (mp) => mp.bainha?.modelo?.trim() || "—",
-        },
-        {
-          key: "botao",
-          label: "Botão",
-          value: (mp) => mp.bainha?.botao?.trim() || "—",
         },
       ];
     default:

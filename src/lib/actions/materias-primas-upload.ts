@@ -79,19 +79,13 @@ function listarOpcoesSelecionadas(
   valor: string | null;
 }> {
   if (tipoMaterial === "lamina") {
-    return [
-      { tipo: "aco", valor: normalizeOptionalText(formData.get("lamina_aco")) },
-      { tipo: "carimbo", valor: normalizeOptionalText(formData.get("lamina_carimbo")) },
-    ];
+    return [{ tipo: "aco", valor: normalizeOptionalText(formData.get("lamina_aco")) }];
   }
   if (tipoMaterial === "bloco") {
     return [{ tipo: "bloco", valor: normalizeOptionalText(formData.get("bloco_tipo")) }];
   }
   if (tipoMaterial === "bainha") {
-    return [
-      { tipo: "bainha", valor: normalizeOptionalText(formData.get("bainha_modelo")) },
-      { tipo: "botao", valor: normalizeOptionalText(formData.get("bainha_botao")) },
-    ];
+    return [{ tipo: "bainha", valor: normalizeOptionalText(formData.get("bainha_modelo")) }];
   }
   return [];
 }
@@ -135,7 +129,6 @@ async function salvarDetalhesTipoMaterial(
       data: {
         materiaPrimaId,
         aco: normalizeOptionalText(formData.get("lamina_aco")),
-        carimbo: normalizeOptionalText(formData.get("lamina_carimbo")),
       },
     });
     return;
@@ -158,7 +151,6 @@ async function salvarDetalhesTipoMaterial(
         materiaPrimaId,
         polegadas: normalizeOptionalText(formData.get("bainha_polegadas")),
         modelo: normalizeOptionalText(formData.get("bainha_modelo")),
-        botao: normalizeOptionalText(formData.get("bainha_botao")),
       },
     });
   }
@@ -190,7 +182,6 @@ async function assertMateriaPrimaUniqueFromFormData(
 ): Promise<void> {
   if (tipoMaterial === "lamina") {
     const aco = normalizeOptionalText(formData.get("lamina_aco"));
-    const carimbo = normalizeOptionalText(formData.get("lamina_carimbo"));
     const existing = await tx.materiaPrima.findFirst({
       where: {
         id: currentId ? { not: currentId } : undefined,
@@ -199,7 +190,6 @@ async function assertMateriaPrimaUniqueFromFormData(
         lamina: {
           is: {
             aco,
-            carimbo,
           },
         },
       },
@@ -211,7 +201,7 @@ async function assertMateriaPrimaUniqueFromFormData(
         getMateriaPrimaUniqueErrorMessage({
           tipo_material: "lamina",
           sku,
-          lamina: { aco, carimbo },
+          lamina: { aco },
         }),
       );
     }

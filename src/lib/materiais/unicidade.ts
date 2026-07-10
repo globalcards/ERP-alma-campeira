@@ -3,7 +3,7 @@ import type { MateriaPrimaLamina, TipoMaterial } from "@/types";
 type MateriaPrimaUniqueInput = {
   tipo_material: TipoMaterial;
   sku: string;
-  lamina?: Pick<Partial<MateriaPrimaLamina>, "aco" | "carimbo"> | null;
+  lamina?: Pick<Partial<MateriaPrimaLamina>, "aco"> | null;
 };
 
 function normalizeUniqueToken(value: string | null | undefined): string {
@@ -16,7 +16,6 @@ export function buildMateriaPrimaUniqueKey(input: MateriaPrimaUniqueInput): stri
       "lamina",
       normalizeUniqueToken(input.sku),
       normalizeUniqueToken(input.lamina?.aco),
-      normalizeUniqueToken(input.lamina?.carimbo),
     ].join("::");
   }
 
@@ -25,7 +24,7 @@ export function buildMateriaPrimaUniqueKey(input: MateriaPrimaUniqueInput): stri
 
 export function getMateriaPrimaUniqueErrorMessage(input: MateriaPrimaUniqueInput): string {
   if (input.tipo_material === "lamina") {
-    return "Já existe uma lâmina com esta combinação de aço, SKU e carimbo.";
+    return "Já existe uma lâmina com esta combinação de aço e SKU.";
   }
 
   return "Já existe uma matéria-prima com este SKU neste tipo de material.";

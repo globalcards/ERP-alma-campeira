@@ -98,9 +98,9 @@ function mapMateriaPrima(row: {
   estoqueMinimo: { toNumber(): number };
   createdAt: Date;
   fornecedor: { id: string; nome: string } | null;
-  lamina: { aco: string | null; carimbo: string | null } | null;
+  lamina: { aco: string | null } | null;
   bloco: { tipo: string | null; cor: string | null } | null;
-  bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
+  bainha: { polegadas: string | null; modelo: string | null } | null;
 }): MateriaPrima {
   return {
     id: row.id,
@@ -152,13 +152,13 @@ function materiasPrimasCache(userId: string) {
             select: { id: true, nome: true },
           },
           lamina: {
-            select: { aco: true, carimbo: true },
+            select: { aco: true },
           },
           bloco: {
             select: { tipo: true, cor: true },
           },
           bainha: {
-            select: { polegadas: true, modelo: true, botao: true },
+            select: { polegadas: true, modelo: true },
           },
         },
       });
@@ -498,9 +498,9 @@ function ordensCompraCache(userId: string) {
                   nome: true,
                   sku: true,
                   tipoMaterial: true,
-                  lamina: { select: { aco: true, carimbo: true } },
+                  lamina: { select: { aco: true } },
                   bloco: { select: { tipo: true, cor: true } },
-                  bainha: { select: { polegadas: true, modelo: true, botao: true } },
+                  bainha: { select: { polegadas: true, modelo: true } },
                 },
               },
             },
@@ -565,6 +565,8 @@ function ordensCompraCache(userId: string) {
             quantidade_vendida: numberFrom(item.quantidadeVendida),
             quantidade_adicional: numberFrom(item.quantidadeAdicional),
             preco_unitario: item.precoUnitario ? numberFrom(item.precoUnitario) : null,
+            carimbo_fornecedor: item.carimboFornecedor ?? null,
+            botao_fornecedor: item.botaoFornecedor ?? null,
             materia_prima: item.materiaPrima
               ? {
                   id: item.materiaPrima.id,

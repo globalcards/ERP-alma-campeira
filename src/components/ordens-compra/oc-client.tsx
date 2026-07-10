@@ -16,6 +16,7 @@ import {
   salvarAlteracoesOC,
   deletarOC,
 } from "@/lib/actions/ordens-compra";
+import { getOpcoesMaterialPorTipo } from "@/lib/actions/opcoes-materiais";
 import { getFornecedoresSemCache } from "@/lib/actions/fornecedores";
 import { STATUS_OC, FORMAS_PAGAMENTO_OC, TIPOS_MATERIAL } from "@/types";
 import type {
@@ -23,6 +24,7 @@ import type {
   FilaReposicaoDetalhe,
   Fornecedor,
   MateriaPrima,
+  OpcoesMateriaisPorTipo,
   OrdemCompra,
   OrdemCompraItem,
   StatusOC,
@@ -85,6 +87,34 @@ function normalizarTextoBusca(valor: string) {
   return valor.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
+function getOpcoesSelectOc(
+  options: OpcoesMateriaisPorTipo[keyof OpcoesMateriaisPorTipo],
+  currentValue: string,
+) {
+  const value = currentValue.trim();
+  if (!value) {
+    return options
+      .filter((item) => item.ativo)
+      .map((item) => ({ value: item.nome, label: item.nome }));
+  }
+
+  const currentOption = options.find((item) => item.nome === value);
+  if (currentOption) {
+    return options
+      .filter((item) => item.ativo || item.nome === value)
+      .map((item) => ({
+        value: item.nome,
+        label: `${item.nome}${!item.ativo ? " (inativo)" : ""}`,
+        searchText: item.nome,
+      }));
+  }
+
+  return [
+    { value, label: `${value} (inativo)`, searchText: value },
+    ...options.filter((item) => item.ativo).map((item) => ({ value: item.nome, label: item.nome })),
+  ];
+}
+
 function obterAgrupadorMaterial(mp: MateriaPrima): string {
   if (mp.tipo_material === "lamina") return mp.lamina?.aco?.trim() || "Sem aço configurado";
   if (mp.tipo_material === "bloco") return mp.bloco?.tipo?.trim() || "Sem tipo configurado";
@@ -119,10 +149,7 @@ function getColunasEspecificasMaterial(
 ): ColunaEspecificaMaterial[] {
   switch (tipoMaterial) {
     case "lamina":
-      return [
-        { key: "aco", label: "Aço", value: (mp) => mp?.lamina?.aco?.trim() || "—" },
-        { key: "carimbo", label: "Carimbo", value: (mp) => mp?.lamina?.carimbo?.trim() || "—" },
-      ];
+      return [{ key: "aco", label: "Aço", value: (mp) => mp?.lamina?.aco?.trim() || "—" }];
     case "bloco":
       return [
         { key: "tipo", label: "Tipo", value: (mp) => mp?.bloco?.tipo?.trim() || "—" },
@@ -136,7 +163,6 @@ function getColunasEspecificasMaterial(
           value: (mp) => mp?.bainha?.polegadas?.trim() || "—",
         },
         { key: "modelo", label: "Modelo", value: (mp) => mp?.bainha?.modelo?.trim() || "—" },
-        { key: "botao", label: "Botão", value: (mp) => mp?.bainha?.botao?.trim() || "—" },
       ];
     default:
       return [];
@@ -154,6 +180,16 @@ function formatResumoMaterialOpcao(mp: OrdemCompraItem["materia_prima"] | Materi
     }
   }
   return base.join(" · ");
+}
+
+function getResumoFornecedorItem(
+  item: Pick<OrdemCompraItem, "carimbo_fornecedor" | "botao_fornecedor">,
+) {
+  const partes = [
+    item.carimbo_fornecedor ? `Carimbo: ${item.carimbo_fornecedor}` : null,
+    item.botao_fornecedor ? `Botão: ${item.botao_fornecedor}` : null,
+  ].filter(Boolean);
+  return partes.join(" · ");
 }
 
 function subtotalOC(itens: OrdemCompraItem[]) {
@@ -580,12 +616,16 @@ function ocBodyHtml(
             const tipoMaterial = item.materia_prima?.tipo_material
               ? labelTipoMaterial(item.materia_prima.tipo_material)
               : "Matéria-prima";
+            const resumoFornecedor = getResumoFornecedorItem(item);
             return `
         <tr>
           <td>${escapeHtml(item.materia_prima?.sku ?? "—")}</td>
           <td>
             <div class="item-name">${escapeHtml(item.materia_prima?.nome ?? "Item sem nome")}</div>
             <div class="item-meta">${escapeHtml(tipoMaterial)}</div>
+            ${
+              resumoFornecedor ? `<div class="item-meta">${escapeHtml(resumoFornecedor)}</div>` : ""
+            }
           </td>
           <td class="numeric">${escapeHtml(fmtQtd(item.quantidade))}</td>
           ${
@@ -950,6 +990,9 @@ function OcDetalheModal({
 }) {
   /** Drafts editáveis — só são persistidos no Salvar. */
   const [editandoQtdTotal, setEditandoQtdTotal] = useState<Record<string, string>>({});
+  const [editandoCamposFornecedor, setEditandoCamposFornecedor] = useState<
+    Record<string, { carimbo_fornecedor: string; botao_fornecedor: string }>
+  >({});
   const [obs, setObs] = useState(oc.observacao ?? "");
   const [descontoPercentualDraft, setDescontoPercentualDraft] = useState("0");
   const [pagoDraft, setPagoDraft] = useState(oc.pago);
@@ -965,6 +1008,8 @@ function OcDetalheModal({
   const [erro, setErro] = useState("");
   const [materiaPrimaParaAdicionar, setMateriaPrimaParaAdicionar] = useState("");
   const [adicionalParaAdicionar, setAdicionalParaAdicionar] = useState("");
+  const [carimboParaAdicionar, setCarimboParaAdicionar] = useState("");
+  const [botaoParaAdicionar, setBotaoParaAdicionar] = useState("");
   const [adicionandoItem, setAdicionandoItem] = useState(false);
   const [usuarioRegistroId, setUsuarioRegistroId] = useState(() => usuarioLogadoId ?? "");
 
@@ -1000,6 +1045,12 @@ function OcDetalheModal({
     enabled: perm.editar && oc.status === "pendente" && mpSectionVisible,
     staleTime: 120_000,
   });
+  const { data: opcoesMateriaisOc } = useQuery({
+    queryKey: ["oc-opcoes-materiais"],
+    queryFn: () => getOpcoesMaterialPorTipo(false),
+    enabled: perm.editar && oc.status === "pendente",
+    staleTime: 120_000,
+  });
 
   function parseNumero(raw: string): number {
     const v = raw.trim().replace(",", ".");
@@ -1027,6 +1078,14 @@ function OcDetalheModal({
   const colunasEspecificasOc = useMemo(
     () => getColunasEspecificasMaterial(tipoMaterialOcAtivo),
     [tipoMaterialOcAtivo],
+  );
+  const opcoesCarimboOc = useMemo(
+    () => getOpcoesSelectOc(opcoesMateriaisOc?.carimbo ?? [], ""),
+    [opcoesMateriaisOc],
+  );
+  const opcoesBotaoOc = useMemo(
+    () => getOpcoesSelectOc(opcoesMateriaisOc?.botao ?? [], ""),
+    [opcoesMateriaisOc],
   );
 
   const opcoesMateriaPrima = useMemo(
@@ -1089,6 +1148,9 @@ function OcDetalheModal({
     setFormaPagamentoDraft(oc.forma_pagamento ?? "");
     setStatusDraft(oc.status);
     setEditandoQtdTotal({});
+    setEditandoCamposFornecedor({});
+    setCarimboParaAdicionar("");
+    setBotaoParaAdicionar("");
   }, [oc.id, oc.observacao, oc.pago, oc.forma_pagamento, oc.status, oc.desconto_total, oc.itens]);
 
   useEffect(() => {
@@ -1128,6 +1190,32 @@ function OcDetalheModal({
     }
     return out;
   }, [itens, editandoQtdTotal]);
+  const itensFornecedorDiff = useMemo(() => {
+    const out: {
+      item_id: string;
+      carimbo_fornecedor?: string | null;
+      botao_fornecedor?: string | null;
+    }[] = [];
+
+    for (const item of itens) {
+      const draft = editandoCamposFornecedor[item.id];
+      if (!draft) continue;
+      const carimboFornecedor = draft.carimbo_fornecedor.trim() || null;
+      const botaoFornecedor = draft.botao_fornecedor.trim() || null;
+      if (
+        carimboFornecedor === (item.carimbo_fornecedor ?? null) &&
+        botaoFornecedor === (item.botao_fornecedor ?? null)
+      ) {
+        continue;
+      }
+      out.push({
+        item_id: item.id,
+        carimbo_fornecedor: carimboFornecedor,
+        botao_fornecedor: botaoFornecedor,
+      });
+    }
+    return out;
+  }, [itens, editandoCamposFornecedor]);
 
   const obsAlterada = (obs ?? "") !== (oc.observacao ?? "");
   const descontoAlterado = Math.abs(descontoPercentualAtual - percentualOriginal) > 1e-9;
@@ -1140,7 +1228,8 @@ function OcDetalheModal({
     pagoAlterado ||
     formaAlterada ||
     statusAlterado ||
-    itensQtdDiff.length > 0;
+    itensQtdDiff.length > 0 ||
+    itensFornecedorDiff.length > 0;
 
   async function salvarTudo() {
     setErro("");
@@ -1218,6 +1307,7 @@ function OcDetalheModal({
         forma_pagamento: formaParaSalvar,
         status: statusAlterado ? statusDraft : undefined,
         itensQtd: itensQtdDiff.length > 0 ? itensQtdDiff : undefined,
+        itensFornecedor: itensFornecedorDiff.length > 0 ? itensFornecedorDiff : undefined,
         usuarioRegistroId: usuarioRegistroId || null,
       });
 
@@ -1363,6 +1453,10 @@ function OcDetalheModal({
                 const vendido = Number(item.quantidade_vendida ?? item.quantidade);
                 const adicionalBase = Number(item.quantidade_adicional ?? 0);
                 const salvoTotal = vendido + adicionalBase;
+                const draftFornecedor = editandoCamposFornecedor[item.id] ?? {
+                  carimbo_fornecedor: item.carimbo_fornecedor ?? "",
+                  botao_fornecedor: item.botao_fornecedor ?? "",
+                };
                 const rawTotal = editandoQtdTotal[item.id];
                 const parsedTotal = rawTotal !== undefined ? parseNumero(rawTotal) : NaN;
                 const totalQty =
@@ -1385,7 +1479,58 @@ function OcDetalheModal({
                       {item.materia_prima?.sku ?? "—"}
                     </td>
                     <td className="px-3 py-2.5 font-medium" style={{ color: "var(--ac-text)" }}>
-                      {item.materia_prima?.nome ?? "—"}
+                      <div className="space-y-2">
+                        <div>{item.materia_prima?.nome ?? "—"}</div>
+                        {item.materia_prima?.tipo_material === "lamina" &&
+                        perm.editar &&
+                        oc.status === "pendente" ? (
+                          <SmartSelect
+                            value={draftFornecedor.carimbo_fornecedor}
+                            onChange={(value) =>
+                              setEditandoCamposFornecedor((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                  ...draftFornecedor,
+                                  carimbo_fornecedor: value,
+                                },
+                              }))
+                            }
+                            options={opcoesCarimboOc}
+                            placeholder="Selecione o carimbo"
+                            showThumbnails={false}
+                          />
+                        ) : null}
+                        {item.materia_prima?.tipo_material === "bainha" &&
+                        perm.editar &&
+                        oc.status === "pendente" ? (
+                          <SmartSelect
+                            value={draftFornecedor.botao_fornecedor}
+                            onChange={(value) =>
+                              setEditandoCamposFornecedor((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                  ...draftFornecedor,
+                                  botao_fornecedor: value,
+                                },
+                              }))
+                            }
+                            options={opcoesBotaoOc}
+                            placeholder="Selecione o botão"
+                            showThumbnails={false}
+                          />
+                        ) : null}
+                        {getResumoFornecedorItem({
+                          carimbo_fornecedor: draftFornecedor.carimbo_fornecedor || null,
+                          botao_fornecedor: draftFornecedor.botao_fornecedor || null,
+                        }) ? (
+                          <div className="text-xs font-normal" style={{ color: "var(--ac-muted)" }}>
+                            {getResumoFornecedorItem({
+                              carimbo_fornecedor: draftFornecedor.carimbo_fornecedor || null,
+                              botao_fornecedor: draftFornecedor.botao_fornecedor || null,
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     {colunasEspecificasOc.map((coluna) => (
                       <td
@@ -1541,6 +1686,46 @@ function OcDetalheModal({
                 />
               </div>
 
+              {tipoMaterialOcAtivo === "lamina" ? (
+                <div className="w-[240px]">
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Carimbo
+                  </label>
+                  <div className="mt-1">
+                    <SmartSelect
+                      value={carimboParaAdicionar}
+                      onChange={setCarimboParaAdicionar}
+                      options={opcoesCarimboOc}
+                      placeholder="Selecione o carimbo"
+                      showThumbnails={false}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {tipoMaterialOcAtivo === "bainha" ? (
+                <div className="w-[240px]">
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Botão
+                  </label>
+                  <div className="mt-1">
+                    <SmartSelect
+                      value={botaoParaAdicionar}
+                      onChange={setBotaoParaAdicionar}
+                      options={opcoesBotaoOc}
+                      placeholder="Selecione o botão"
+                      showThumbnails={false}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div className="w-[220px]">
                 <label
                   className="text-xs font-semibold uppercase tracking-wide"
@@ -1580,10 +1765,16 @@ function OcDetalheModal({
                       oc.id,
                       materiaPrimaParaAdicionar,
                       adicional,
+                      {
+                        carimbo_fornecedor: carimboParaAdicionar || null,
+                        botao_fornecedor: botaoParaAdicionar || null,
+                      },
                       usuarioRegistroId || null,
                     );
                     setMateriaPrimaParaAdicionar("");
                     setAdicionalParaAdicionar("");
+                    setCarimboParaAdicionar("");
+                    setBotaoParaAdicionar("");
                     onRefresh();
                   } catch (e: unknown) {
                     setErro(e instanceof Error ? e.message : "Erro ao adicionar matéria-prima.");
@@ -2022,6 +2213,8 @@ type LinhaCriarOc = {
   materia_prima_id: string;
   quantidade: string;
   preco_unitario: string;
+  carimbo_fornecedor: string;
+  botao_fornecedor: string;
 };
 
 function OcCriarModal({
@@ -2042,6 +2235,13 @@ function OcCriarModal({
   const [linhas, setLinhas] = useState<LinhaCriarOc[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [materiasPrimas, setMateriasPrimas] = useState<MateriaPrima[]>([]);
+  const [opcoesMateriais, setOpcoesMateriais] = useState<OpcoesMateriaisPorTipo>({
+    aco: [],
+    bloco: [],
+    botao: [],
+    carimbo: [],
+    bainha: [],
+  });
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -2153,10 +2353,15 @@ function OcCriarModal({
     async function load() {
       setCarregando(true);
       try {
-        const [f, m] = await Promise.all([getFornecedoresSemCache(1000), getMateriasPrimas()]);
+        const [f, m, opcoes] = await Promise.all([
+          getFornecedoresSemCache(1000),
+          getMateriasPrimas(),
+          getOpcoesMaterialPorTipo(false),
+        ]);
         if (!cancelled) {
           setFornecedores(f);
           setMateriasPrimas(m);
+          setOpcoesMateriais(opcoes);
         }
       } catch (e: unknown) {
         if (!cancelled) setErro(e instanceof Error ? e.message : "Erro ao carregar dados.");
@@ -2246,6 +2451,8 @@ function OcCriarModal({
           materia_prima_id: materiaPrimaId,
           quantidade: "1",
           preco_unitario: String(mp.preco_custo ?? ""),
+          carimbo_fornecedor: "",
+          botao_fornecedor: "",
         },
       ];
     });
@@ -2279,6 +2486,8 @@ function OcCriarModal({
       materia_prima_id: string;
       quantidade: number;
       preco_unitario?: number | null;
+      carimbo_fornecedor?: string | null;
+      botao_fornecedor?: string | null;
     }[] = [];
     for (const l of linhas) {
       const q = parseNumero(l.quantidade);
@@ -2297,6 +2506,12 @@ function OcCriarModal({
         preco_unitario = p;
       }
       payload.push({ materia_prima_id: l.materia_prima_id, quantidade: q, preco_unitario });
+      if (l.carimbo_fornecedor.trim()) {
+        payload[payload.length - 1].carimbo_fornecedor = l.carimbo_fornecedor.trim();
+      }
+      if (l.botao_fornecedor.trim()) {
+        payload[payload.length - 1].botao_fornecedor = l.botao_fornecedor.trim();
+      }
     }
 
     const desconto = parseNumero(descontoPercentual);
@@ -2650,6 +2865,14 @@ function OcCriarModal({
                       const precoRaw = l.preco_unitario.trim();
                       const precoUnitario =
                         precoRaw !== "" ? parseNumero(precoRaw) : (mpSelecionada?.preco_custo ?? 0);
+                      const opcoesCarimboFornecedor = getOpcoesSelectOc(
+                        opcoesMateriais.carimbo,
+                        l.carimbo_fornecedor,
+                      );
+                      const opcoesBotaoFornecedor = getOpcoesSelectOc(
+                        opcoesMateriais.botao,
+                        l.botao_fornecedor,
+                      );
                       const subtotalItem =
                         Number.isFinite(quantidade) &&
                         quantidade > 0 &&
@@ -2703,6 +2926,14 @@ function OcCriarModal({
                                       .join(" · ")
                                   : "Material genérico"}
                               </p>
+                              {l.carimbo_fornecedor || l.botao_fornecedor ? (
+                                <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                  {getResumoFornecedorItem({
+                                    carimbo_fornecedor: l.carimbo_fornecedor || null,
+                                    botao_fornecedor: l.botao_fornecedor || null,
+                                  })}
+                                </p>
+                              ) : null}
                             </div>
                             <button
                               type="button"
@@ -2724,7 +2955,15 @@ function OcCriarModal({
                             </button>
                           </div>
 
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div
+                            className="mt-3 grid gap-3"
+                            style={{
+                              gridTemplateColumns:
+                                tipoMaterial === "lamina" || tipoMaterial === "bainha"
+                                  ? "repeat(3, minmax(0, 1fr))"
+                                  : "repeat(2, minmax(0, 1fr))",
+                            }}
+                          >
                             <div className="space-y-1.5">
                               <label
                                 className="text-[11px] font-semibold uppercase tracking-wide"
@@ -2769,6 +3008,46 @@ function OcCriarModal({
                                 }}
                               />
                             </div>
+
+                            {tipoMaterial === "lamina" ? (
+                              <div className="space-y-1.5">
+                                <label
+                                  className="text-[11px] font-semibold uppercase tracking-wide"
+                                  style={{ color: "var(--ac-muted)" }}
+                                >
+                                  Carimbo
+                                </label>
+                                <SmartSelect
+                                  value={l.carimbo_fornecedor}
+                                  onChange={(value) =>
+                                    updateLinha(l.key, { carimbo_fornecedor: value })
+                                  }
+                                  options={opcoesCarimboFornecedor}
+                                  placeholder="Selecione o carimbo"
+                                  showThumbnails={false}
+                                />
+                              </div>
+                            ) : null}
+
+                            {tipoMaterial === "bainha" ? (
+                              <div className="space-y-1.5">
+                                <label
+                                  className="text-[11px] font-semibold uppercase tracking-wide"
+                                  style={{ color: "var(--ac-muted)" }}
+                                >
+                                  Botão
+                                </label>
+                                <SmartSelect
+                                  value={l.botao_fornecedor}
+                                  onChange={(value) =>
+                                    updateLinha(l.key, { botao_fornecedor: value })
+                                  }
+                                  options={opcoesBotaoFornecedor}
+                                  placeholder="Selecione o botão"
+                                  showThumbnails={false}
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );

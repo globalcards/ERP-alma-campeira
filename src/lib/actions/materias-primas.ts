@@ -131,7 +131,6 @@ async function assertMateriaPrimaUnique(
         lamina: {
           is: {
             aco: input.lamina?.aco ?? null,
-            carimbo: input.lamina?.carimbo ?? null,
           },
         },
       },
@@ -240,9 +239,9 @@ function mapMateriaPrimaDetalhe(row: {
     createdAt: Date;
     tiposMaterial?: { tipoMaterial: TipoMaterial }[];
   } | null;
-  lamina: { aco: string | null; carimbo: string | null } | null;
+  lamina: { aco: string | null } | null;
   bloco: { tipo: string | null; cor: string | null } | null;
-  bainha: { polegadas: string | null; modelo: string | null; botao: string | null } | null;
+  bainha: { polegadas: string | null; modelo: string | null } | null;
 }): MateriaPrima {
   return {
     id: row.id,
@@ -355,7 +354,6 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
       tipo_material === "lamina"
         ? {
             aco: normalizeOptionalText(input.lamina?.aco),
-            carimbo: normalizeOptionalText(input.lamina?.carimbo),
           }
         : null,
     bloco:
@@ -370,7 +368,6 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
         ? {
             polegadas: normalizeOptionalText(input.bainha?.polegadas),
             modelo: normalizeOptionalText(input.bainha?.modelo),
-            botao: normalizeOptionalText(input.bainha?.botao),
           }
         : null,
   };
@@ -406,19 +403,13 @@ function listarOpcoesSelecionadas(input: NormalizedMPInput): Array<{
   valor: string | null;
 }> {
   if (input.tipo_material === "lamina") {
-    return [
-      { tipo: "aco", valor: input.lamina?.aco ?? null },
-      { tipo: "carimbo", valor: input.lamina?.carimbo ?? null },
-    ];
+    return [{ tipo: "aco", valor: input.lamina?.aco ?? null }];
   }
   if (input.tipo_material === "bloco") {
     return [{ tipo: "bloco", valor: input.bloco?.tipo ?? null }];
   }
   if (input.tipo_material === "bainha") {
-    return [
-      { tipo: "bainha", valor: input.bainha?.modelo ?? null },
-      { tipo: "botao", valor: input.bainha?.botao ?? null },
-    ];
+    return [{ tipo: "bainha", valor: input.bainha?.modelo ?? null }];
   }
   return [];
 }
@@ -461,7 +452,6 @@ async function salvarDetalhesTipoMaterial(
       data: {
         materiaPrimaId,
         aco: input.lamina?.aco ?? null,
-        carimbo: input.lamina?.carimbo ?? null,
       },
     });
     return;
@@ -484,7 +474,6 @@ async function salvarDetalhesTipoMaterial(
         materiaPrimaId,
         polegadas: input.bainha?.polegadas ?? null,
         modelo: input.bainha?.modelo ?? null,
-        botao: input.bainha?.botao ?? null,
       },
     });
   }
@@ -680,13 +669,13 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
           },
         },
         lamina: {
-          select: { aco: true, carimbo: true },
+          select: { aco: true },
         },
         bloco: {
           select: { tipo: true, cor: true },
         },
         bainha: {
-          select: { polegadas: true, modelo: true, botao: true },
+          select: { polegadas: true, modelo: true },
         },
       },
     }),

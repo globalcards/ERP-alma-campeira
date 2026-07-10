@@ -33,7 +33,7 @@ export type OpcoesMateriaisPorTipo = Record<TipoOpcaoMaterial, OpcaoMaterial[]>;
 
 export type MateriaPrimaLamina = {
   aco: string | null;
-  carimbo: string | null;
+  carimbo?: string | null;
 };
 
 export type MateriaPrimaBloco = {
@@ -44,7 +44,7 @@ export type MateriaPrimaBloco = {
 export type MateriaPrimaBainha = {
   polegadas: string | null;
   modelo: string | null;
-  botao: string | null;
+  botao?: string | null;
 };
 
 export type Fornecedor = {
@@ -486,6 +486,8 @@ export type OrdemCompraItem = {
   quantidade_vendida: number;
   quantidade_adicional: number;
   preco_unitario: number | null;
+  carimbo_fornecedor: string | null;
+  botao_fornecedor: string | null;
   materia_prima?: Pick<
     MateriaPrima,
     "id" | "codigo" | "nome" | "tipo_material" | "sku" | "lamina" | "bloco" | "bainha"
