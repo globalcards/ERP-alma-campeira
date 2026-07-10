@@ -66,6 +66,7 @@ export async function salvarFacaComFoto(formData: FormData) {
   const sku = String(formData.get("sku") ?? "").trim();
   const nome = String(formData.get("nome") ?? "").trim();
   const categoria = String(formData.get("categoria") ?? "").trim();
+  const precoVendaInformado = Number(String(formData.get("preco_venda") ?? "").replace(",", "."));
   const estoque_atual = Number(formData.get("estoque_atual"));
   const estoque_minimo = Number(formData.get("estoque_minimo"));
   const foto = formData.get("foto");
@@ -110,6 +111,9 @@ export async function salvarFacaComFoto(formData: FormData) {
   if (!sku) throw new Error("SKU é obrigatório.");
   if (!nome) throw new Error("Nome é obrigatório.");
   if (!categoria) throw new Error("Categoria é obrigatória.");
+  if (!Number.isFinite(precoVendaInformado) || precoVendaInformado <= 0) {
+    throw new Error("Preço de venda inválido.");
+  }
   if (!Number.isFinite(estoque_atual)) throw new Error("Estoque atual inválido.");
   if (!Number.isFinite(estoque_minimo)) throw new Error("Estoque mínimo inválido.");
 
@@ -149,7 +153,10 @@ export async function salvarFacaComFoto(formData: FormData) {
     margem_lucro: taxasConfig.margem_lucro,
   };
   const custoProd = custoBom + taxas.taxa_producao;
-  const preco_venda = custoProd * (1 + taxas.margem_lucro / 100);
+  const precoVendaSugerido = custoProd * (1 + taxas.margem_lucro / 100);
+  const preco_venda = Number.isFinite(precoVendaInformado) && precoVendaInformado > 0
+    ? precoVendaInformado
+    : precoVendaSugerido;
 
   let facaId: string;
   try {

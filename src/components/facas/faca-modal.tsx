@@ -38,6 +38,7 @@ type Form = {
   sku: string;
   nome: string;
   categoria: string;
+  preco_venda: string;
   estoque_atual: string;
   estoque_minimo: string;
 };
@@ -85,6 +86,16 @@ function getResumoMateriaPrima(mp: MateriaPrima): string {
   return "Latão";
 }
 
+function parseDecimalInput(value: string): number {
+  const normalized = value.replace(",", ".").trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatDecimalInput(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+}
+
 export function FacaModal({
   open,
   onClose,
@@ -99,6 +110,7 @@ export function FacaModal({
     sku: "",
     nome: "",
     categoria: defaultCategoria,
+    preco_venda: "0.00",
     estoque_atual: "0",
     estoque_minimo: "0",
   });
@@ -113,6 +125,7 @@ export function FacaModal({
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>("");
   const [fotoDragActive, setFotoDragActive] = useState(false);
+  const [precoVendaPersonalizado, setPrecoVendaPersonalizado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [fotoLightboxOpen, setFotoLightboxOpen] = useState(false);
@@ -153,6 +166,7 @@ export function FacaModal({
         sku: editando.sku,
         nome: editando.nome,
         categoria: editando.categoria,
+        preco_venda: formatDecimalInput(Number(editando.preco_venda ?? 0)),
         estoque_atual: String(editando.estoque_atual),
         estoque_minimo: String(editando.estoque_minimo),
       });
@@ -172,6 +186,7 @@ export function FacaModal({
         sku: "",
         nome: "",
         categoria: categorias[0]?.nome ?? "",
+        preco_venda: "0.00",
         estoque_atual: "0",
         estoque_minimo: "0",
       });
@@ -184,6 +199,7 @@ export function FacaModal({
     setErro("");
     setFotoFile(null);
     setFotoPreview("");
+    setPrecoVendaPersonalizado(Boolean(editando));
   }, [editando, open, categorias, carregarBOM]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -328,6 +344,27 @@ export function FacaModal({
     }, 0);
   }, [bomItens, materiasById]);
 
+  const precoVendaSugerido = useMemo(() => {
+    if (!taxasLucro) return 0;
+    return calcularPrecoVendaFaca(custoReferencia, taxasLucro);
+  }, [custoReferencia, taxasLucro]);
+
+  useEffect(() => {
+    if (!open || editando || precoVendaPersonalizado) return;
+    setForm((current) => ({
+      ...current,
+      preco_venda: formatDecimalInput(precoVendaSugerido),
+    }));
+  }, [open, editando, precoVendaPersonalizado, precoVendaSugerido]);
+
+  function aplicarPrecoSugerido() {
+    setForm((current) => ({
+      ...current,
+      preco_venda: formatDecimalInput(precoVendaSugerido),
+    }));
+    setPrecoVendaPersonalizado(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
@@ -338,6 +375,10 @@ export function FacaModal({
     }
     if (!form.nome.trim()) {
       setErro("Nome é obrigatório.");
+      return;
+    }
+    if (parseDecimalInput(form.preco_venda) <= 0) {
+      setErro("Informe um preço de venda maior que zero.");
       return;
     }
 
@@ -364,6 +405,7 @@ export function FacaModal({
       fd.append("sku", form.sku);
       fd.append("nome", form.nome);
       fd.append("categoria", form.categoria);
+      fd.append("preco_venda", String(parseDecimalInput(form.preco_venda)));
       fd.append("estoque_atual", String(parseInt(form.estoque_atual) || 0));
       fd.append("estoque_minimo", String(parseInt(form.estoque_minimo) || 0));
       if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
@@ -503,10 +545,10 @@ export function FacaModal({
             </div>
             <div>
               <p className="text-xs font-semibold uppercase" style={{ color: "var(--ac-muted)" }}>
-                Preço de venda calculado
+                Preço sugerido
               </p>
               <p className="text-sm font-semibold" style={{ color: "var(--ac-accent)" }}>
-                {calcularPrecoVendaFaca(custoReferencia, taxasLucro).toLocaleString("pt-BR", {
+                {precoVendaSugerido.toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
                 })}
@@ -517,6 +559,60 @@ export function FacaModal({
             </div>
           </div>
         ) : null}
+
+        <div
+          className="rounded-xl p-3 flex flex-col gap-2"
+          style={{ border: "1px solid var(--ac-border)", background: "var(--ac-card)" }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
+                Preço de venda
+              </p>
+              <p className="text-xs leading-snug" style={{ color: "var(--ac-muted)" }}>
+                Defina o valor final da faca. O sugerido continua como referência para arredondar ou ajustar.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={aplicarPrecoSugerido}
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                color: "var(--ac-accent)",
+                background: "color-mix(in srgb, var(--ac-accent) 10%, transparent)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background =
+                  "color-mix(in srgb, var(--ac-accent) 18%, transparent)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background =
+                  "color-mix(in srgb, var(--ac-accent) 10%, transparent)")
+              }
+            >
+              Usar sugerido
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+            <Input
+              id="preco_venda"
+              label="Preço de venda final *"
+              type="number"
+              min="0.01"
+              step="0.01"
+              inputMode="decimal"
+              value={form.preco_venda}
+              onChange={(e) => {
+                setPrecoVendaPersonalizado(true);
+                set("preco_venda", e.target.value);
+              }}
+            />
+            <div className="text-xs sm:text-right" style={{ color: "var(--ac-muted)" }}>
+              {precoVendaPersonalizado ? "Valor personalizado pelo usuário." : "Valor sincronizado com o sugerido."}
+            </div>
+          </div>
+        </div>
 
         {/* ========== SECAO BOM (Materias-Primas) ========== */}
         <div className="flex flex-col gap-2">
