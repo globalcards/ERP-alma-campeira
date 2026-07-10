@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { mapCliente } from "@/lib/prisma-auth-mappers";
 import type {
   MateriaPrima,
+  MateriaPrimaFornecedor,
   Fornecedor,
   OpcaoMaterial,
   Faca,
@@ -85,6 +86,54 @@ function mapFornecedor(row: {
   };
 }
 
+function mapFornecedorResumo(row: { id: string; nome: string } | null | undefined): Fornecedor | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    nome: row.nome,
+    telefone: null,
+    email: null,
+    tipo_documento: "cnpj",
+    documento: null,
+    cep: null,
+    logradouro: null,
+    numero: null,
+    complemento: null,
+    bairro: null,
+    cidade: null,
+    uf: null,
+    razao_social: null,
+    ie: null,
+    codigo_municipio_ibge: null,
+    tipos_materiais: [],
+    created_at: "",
+  };
+}
+
+function mapMateriaPrimaFornecedorLink(row: {
+  id: string;
+  materiaPrimaId: string;
+  fornecedorId: string;
+  precoCusto: { toNumber(): number };
+  preferencial: boolean;
+  ativo: boolean;
+  observacao: string | null;
+  createdAt: Date;
+  fornecedor: { id: string; nome: string } | null;
+}): MateriaPrimaFornecedor {
+  return {
+    id: row.id,
+    materia_prima_id: row.materiaPrimaId,
+    fornecedor_id: row.fornecedorId,
+    preco_custo: row.precoCusto.toNumber(),
+    preferencial: row.preferencial,
+    ativo: row.ativo,
+    observacao: row.observacao,
+    created_at: row.createdAt.toISOString(),
+    fornecedor: mapFornecedorResumo(row.fornecedor),
+  };
+}
+
 function mapMateriaPrima(row: {
   id: string;
   codigo: string;
@@ -98,6 +147,17 @@ function mapMateriaPrima(row: {
   estoqueMinimo: { toNumber(): number };
   createdAt: Date;
   fornecedor: { id: string; nome: string } | null;
+  fornecedoresLinks: Array<{
+    id: string;
+    materiaPrimaId: string;
+    fornecedorId: string;
+    precoCusto: { toNumber(): number };
+    preferencial: boolean;
+    ativo: boolean;
+    observacao: string | null;
+    createdAt: Date;
+    fornecedor: { id: string; nome: string } | null;
+  }>;
   lamina: { aco: string | null } | null;
   bloco: { tipo: string | null; cor: string | null } | null;
   bainha: { polegadas: string | null; modelo: string | null } | null;
@@ -117,28 +177,8 @@ function mapMateriaPrima(row: {
     lamina: row.lamina,
     bloco: row.bloco,
     bainha: row.bainha,
-    fornecedor: row.fornecedor
-      ? {
-          id: row.fornecedor.id,
-          nome: row.fornecedor.nome,
-          telefone: null,
-          email: null,
-          tipo_documento: "cnpj",
-          documento: null,
-          cep: null,
-          logradouro: null,
-          numero: null,
-          complemento: null,
-          bairro: null,
-          cidade: null,
-          uf: null,
-          razao_social: null,
-          ie: null,
-          codigo_municipio_ibge: null,
-          tipos_materiais: [],
-          created_at: "",
-        }
-      : null,
+    fornecedor: mapFornecedorResumo(row.fornecedor),
+    fornecedores_vinculados: row.fornecedoresLinks.map(mapMateriaPrimaFornecedorLink),
   };
 }
 
@@ -150,6 +190,14 @@ function materiasPrimasCache(userId: string) {
         include: {
           fornecedor: {
             select: { id: true, nome: true },
+          },
+          fornecedoresLinks: {
+            include: {
+              fornecedor: {
+                select: { id: true, nome: true },
+              },
+            },
+            orderBy: [{ preferencial: "desc" }, { createdAt: "asc" }],
           },
           lamina: {
             select: { aco: true },

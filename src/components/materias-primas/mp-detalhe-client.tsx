@@ -390,6 +390,54 @@ export function MPDetalheClient({
           </section>
         )}
 
+        {!!mp.fornecedores_vinculados?.length && (
+          <section>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--ac-text)" }}>
+              Fornecedores vinculados
+            </h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {mp.fornecedores_vinculados.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl px-4 py-3"
+                  style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold" style={{ color: "var(--ac-text)" }}>
+                      {item.fornecedor?.nome ?? "Fornecedor"}
+                    </p>
+                    {item.preferencial && (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
+                        style={{
+                          color: "var(--ac-accent)",
+                          background: "color-mix(in srgb, var(--ac-accent) 12%, transparent)",
+                        }}
+                      >
+                        Preferencial
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm" style={{ color: "var(--ac-text)" }}>
+                    Custo:{" "}
+                    <strong>
+                      {item.preco_custo.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </strong>
+                  </p>
+                  {item.observacao && (
+                    <p className="mt-1 text-sm" style={{ color: "var(--ac-muted)" }}>
+                      {item.observacao}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ========== Facas que usam este material ========== */}
         <section>
           <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--ac-text)" }}>

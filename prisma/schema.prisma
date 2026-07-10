@@ -179,6 +179,7 @@ model Fornecedor {
   boletos             Boleto[]
   ordensCompra        OrdemCompra[]
   materiasPrimas      MateriaPrima[]
+  materiasPrimasLinks MateriaPrimaFornecedor[]
   consumiveis         Consumivel[]
   tiposMaterial       FornecedorTipoMaterial[]
 
@@ -303,6 +304,7 @@ model MateriaPrima {
   estoqueMinimo        Decimal               @default(0) @map("estoque_minimo") @db.Decimal(14, 4)
   createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   fornecedor           Fornecedor?           @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  fornecedoresLinks    MateriaPrimaFornecedor[]
   facaLinks            FacaMateriaPrima[]
   filaItens            FilaReposicaoItem[]
   ordemCompraItens     OrdemCompraItem[]
@@ -314,6 +316,25 @@ model MateriaPrima {
   @@index([tipoMaterial], map: "idx_materias_primas_tipo_material")
   @@index([tipoMaterial, sku], map: "idx_materias_primas_tipo_material_sku")
   @@map("materias_primas")
+}
+
+model MateriaPrimaFornecedor {
+  id             String       @id @default(uuid()) @db.Uuid
+  materiaPrimaId String       @map("materia_prima_id") @db.Uuid
+  fornecedorId   String       @map("fornecedor_id") @db.Uuid
+  precoCusto     Decimal      @default(0) @map("preco_custo") @db.Decimal(14, 4)
+  preferencial   Boolean      @default(false)
+  ativo          Boolean      @default(true)
+  observacao     String?
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  materiaPrima   MateriaPrima @relation(fields: [materiaPrimaId], references: [id], onDelete: Cascade)
+  fornecedor     Fornecedor   @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@unique([materiaPrimaId, fornecedorId], map: "materia_prima_fornecedor_unique")
+  @@index([materiaPrimaId], map: "idx_materia_prima_fornecedores_mp")
+  @@index([fornecedorId], map: "idx_materia_prima_fornecedores_fornecedor")
+  @@index([materiaPrimaId, preferencial], map: "idx_materia_prima_fornecedores_preferencial")
+  @@map("materia_prima_fornecedores")
 }
 
 model FornecedorTipoMaterial {

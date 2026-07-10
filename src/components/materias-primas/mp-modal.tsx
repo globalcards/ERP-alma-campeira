@@ -41,6 +41,13 @@ type Form = {
   bainha_botao: string;
 };
 
+type SupplierFormRow = {
+  id: string;
+  fornecedor_id: string;
+  preco_custo: string;
+  observacao: string;
+};
+
 type BulkMode = "single" | "bulk";
 
 type BulkRow = {
@@ -338,6 +345,27 @@ function createBulkRow(): BulkRow {
   };
 }
 
+function createSupplierRow(): SupplierFormRow {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    fornecedor_id: "",
+    preco_custo: "",
+    observacao: "",
+  };
+}
+
+function getInitialSupplierRows(editando: MateriaPrima | null | undefined): SupplierFormRow[] {
+  if (!editando?.fornecedores_vinculados?.length) return [];
+  return editando.fornecedores_vinculados
+    .filter((item) => !item.preferencial)
+    .map((item) => ({
+      id: item.id,
+      fornecedor_id: item.fornecedor_id,
+      preco_custo: String(item.preco_custo),
+      observacao: item.observacao ?? "",
+    }));
+}
+
 function createBulkRows(count = BULK_ROWS_STEP): BulkRow[] {
   return Array.from({ length: count }, () => createBulkRow());
 }
@@ -445,6 +473,9 @@ export function MPModal({
   onSaved,
 }: Props) {
   const [form, setForm] = useState<Form>(() => getInitialForm(editando, tipoMaterialContext));
+  const [fornecedoresExtras, setFornecedoresExtras] = useState<SupplierFormRow[]>(() =>
+    getInitialSupplierRows(editando),
+  );
   const [modo, setModo] = useState<BulkMode>("single");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => createBulkRows());
   const [erro, setErro] = useState("");
@@ -477,6 +508,7 @@ export function MPModal({
   useEffect(() => {
     if (!open) return;
     setForm(getInitialForm(editando, tipoMaterialContext));
+    setFornecedoresExtras(getInitialSupplierRows(editando));
     setModo("single");
     setBulkRows(createBulkRows());
     setErro("");
@@ -521,6 +553,30 @@ export function MPModal({
             : current.fornecedor_id,
       };
     });
+    setFornecedoresExtras((current) =>
+      current.filter((row) => {
+        const fornecedor = fornecedores.find((item) => item.id === row.fornecedor_id);
+        return !fornecedor || fornecedorAtendeTipo(fornecedor, value);
+      }),
+    );
+  }
+
+  function setFornecedorExtra(
+    rowId: string,
+    field: keyof Omit<SupplierFormRow, "id">,
+    value: string,
+  ) {
+    setFornecedoresExtras((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
+    );
+  }
+
+  function addFornecedorExtra() {
+    setFornecedoresExtras((current) => [...current, createSupplierRow()]);
+  }
+
+  function removeFornecedorExtra(rowId: string) {
+    setFornecedoresExtras((current) => current.filter((row) => row.id !== rowId));
   }
 
   function setBulkCell(rowId: string, field: BulkField, value: string) {
@@ -706,6 +762,45 @@ export function MPModal({
         setErro("Preço de custo inválido.");
         return;
       }
+      const fornecedoresPayload = [
+        ...(form.fornecedor_id
+          ? [
+              {
+                fornecedor_id: form.fornecedor_id,
+                preco_custo: Number(form.preco_custo),
+                observacao: null,
+                preferencial: true,
+                ativo: true,
+              },
+            ]
+          : []),
+        ...fornecedoresExtras
+          .map((row) => ({
+            fornecedor_id: row.fornecedor_id.trim(),
+            preco_custo: Number(row.preco_custo),
+            observacao: row.observacao.trim() || null,
+            preferencial: false,
+            ativo: true,
+          }))
+          .filter((row) => row.fornecedor_id || row.preco_custo || row.observacao),
+      ];
+      const idsFornecedores = new Set<string>();
+      for (const fornecedor of fornecedoresPayload) {
+        if (!fornecedor.fornecedor_id) {
+          setErro("Selecione um fornecedor válido em todos os vínculos extras.");
+          return;
+        }
+        if (!Number.isFinite(fornecedor.preco_custo) || fornecedor.preco_custo < 0) {
+          setErro("Preço de custo inválido em um dos fornecedores vinculados.");
+          return;
+        }
+        const key = fornecedor.fornecedor_id.toLowerCase();
+        if (idsFornecedores.has(key)) {
+          setErro("Não repita o mesmo fornecedor na matéria-prima.");
+          return;
+        }
+        idsFornecedores.add(key);
+      }
 
       setLoading(true);
       try {
@@ -716,6 +811,7 @@ export function MPModal({
         fd.append("tipo_material", tipoMaterialAtual);
         fd.append("fornecedor_id", form.fornecedor_id);
         fd.append("preco_custo", String(parseFloat(form.preco_custo)));
+        fd.append("fornecedores_json", JSON.stringify(fornecedoresPayload));
         fd.append("estoque_atual", String(parseFloat(form.estoque_atual) || 0));
         fd.append("estoque_minimo", String(parseFloat(form.estoque_minimo) || 0));
         fd.append("lamina_aco", form.lamina_aco);
@@ -795,6 +891,13 @@ export function MPModal({
   }));
   const tipoFixo = !!tipoMaterialContext;
   const bulkColumns = getBulkColumns(tipoMaterialAtual);
+  const opcoesFornecedorExtra = fornecedoresCompativeis
+    .filter((fornecedor) => fornecedor.id !== form.fornecedor_id)
+    .map((fornecedor) => ({
+      value: fornecedor.id,
+      label: fornecedor.nome,
+      searchText: `${fornecedor.nome} ${fornecedor.cidade ?? ""} ${fornecedor.uf ?? ""}`,
+    }));
   const bulkTableMinWidth =
     60 + bulkColumns.reduce((total, column) => total + (column.minWidth ?? 140), 0);
   const modalTitle = editando
@@ -1063,7 +1166,7 @@ export function MPModal({
                   className="text-sm font-medium"
                   style={{ color: "var(--ac-text)" }}
                 >
-                  Fornecedor
+                  Fornecedor preferencial
                 </label>
                 <ManageResourceLink
                   href="/fornecedores"
@@ -1080,8 +1183,7 @@ export function MPModal({
                 showThumbnails={false}
               />
               <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
-                Mostra fornecedores compatíveis com{" "}
-                {labelTipoMaterial(tipoMaterialAtual).toLowerCase()}.
+                Esse fornecedor define o custo padrão usado pela matéria-prima.
               </p>
             </div>
 
@@ -1105,7 +1207,7 @@ export function MPModal({
             <div className="grid grid-cols-3 gap-3">
               <Input
                 id="preco_custo"
-                label="Preço de Custo (R$) *"
+                label="Preço do preferencial (R$) *"
                 type="number"
                 min="0"
                 step="0.01"
@@ -1131,6 +1233,86 @@ export function MPModal({
                 value={form.estoque_minimo}
                 onChange={(e) => set("estoque_minimo", e.target.value)}
               />
+            </div>
+
+            <div
+              className="rounded-xl p-4 flex flex-col gap-3"
+              style={{ border: "1px solid var(--ac-border)", background: "var(--ac-bg)" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--ac-muted)" }}
+                  >
+                    Fornecedores adicionais
+                  </p>
+                  <p className="mt-1 text-sm" style={{ color: "var(--ac-muted)" }}>
+                    Use a mesma SKU da matéria-prima e vincule outros fornecedores sem duplicar o
+                    cadastro.
+                  </p>
+                </div>
+                <Button type="button" variant="secondary" onClick={addFornecedorExtra}>
+                  Adicionar fornecedor
+                </Button>
+              </div>
+
+              {fornecedoresExtras.length === 0 ? (
+                <p className="text-sm" style={{ color: "var(--ac-muted)" }}>
+                  Nenhum fornecedor adicional vinculado.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {fornecedoresExtras.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-xl p-3 grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_160px_minmax(0,1fr)_auto] gap-3 items-end"
+                      style={{
+                        border: "1px solid var(--ac-border)",
+                        background: "var(--ac-card)",
+                      }}
+                    >
+                      <SmartSelect
+                        value={row.fornecedor_id}
+                        onChange={(value) => setFornecedorExtra(row.id, "fornecedor_id", value)}
+                        options={opcoesFornecedorExtra.filter(
+                          (option) =>
+                            option.value === row.fornecedor_id ||
+                            !fornecedoresExtras.some(
+                              (item) =>
+                                item.id !== row.id && item.fornecedor_id === option.value,
+                            ),
+                        )}
+                        placeholder={`Fornecedor adicional ${index + 1}`}
+                        showThumbnails={false}
+                      />
+                      <Input
+                        id={`fornecedor-extra-preco-${row.id}`}
+                        label="Preço custo"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.preco_custo}
+                        onChange={(e) => setFornecedorExtra(row.id, "preco_custo", e.target.value)}
+                      />
+                      <Input
+                        id={`fornecedor-extra-obs-${row.id}`}
+                        label="Observação"
+                        placeholder="Opcional"
+                        value={row.observacao}
+                        onChange={(e) => setFornecedorExtra(row.id, "observacao", e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => removeFornecedorExtra(row.id)}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-start gap-3">

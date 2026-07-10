@@ -138,6 +138,21 @@ function fornecedorCompativelComTipo(
   return tipos.length === 0 || tipos.includes(tipoMaterial);
 }
 
+function getVinculoFornecedorMateriaPrima(
+  mp: MateriaPrima,
+  fornecedorId: string | null | undefined,
+) {
+  if (!fornecedorId) return null;
+  return mp.fornecedores_vinculados?.find((item) => item.fornecedor_id === fornecedorId) ?? null;
+}
+
+function getPrecoMateriaPrimaPorFornecedor(
+  mp: MateriaPrima,
+  fornecedorId: string | null | undefined,
+) {
+  return getVinculoFornecedorMateriaPrima(mp, fornecedorId)?.preco_custo ?? mp.preco_custo ?? 0;
+}
+
 type ColunaEspecificaMaterial = {
   key: string;
   label: string;
@@ -2266,13 +2281,15 @@ function OcCriarModal({
   );
   const materiasPrimasFiltradas = useMemo(
     () =>
-      materiasPrimasDoTipo.filter((mp) =>
-        agrupador
-          ? normalizarAgrupadorMaterial(obterAgrupadorMaterial(mp)) ===
-            normalizarAgrupadorMaterial(agrupador)
-          : true,
+      materiasPrimasDoTipo.filter(
+        (mp) =>
+          (agrupador
+            ? normalizarAgrupadorMaterial(obterAgrupadorMaterial(mp)) ===
+              normalizarAgrupadorMaterial(agrupador)
+            : true) &&
+          (fornecedorId ? Boolean(getVinculoFornecedorMateriaPrima(mp, fornecedorId)) : true),
       ),
-    [agrupador, materiasPrimasDoTipo],
+    [agrupador, fornecedorId, materiasPrimasDoTipo],
   );
   const possuiItensSelecionados = linhas.length > 0;
   const colunasEspecificasCriacao = useMemo(
@@ -2383,6 +2400,20 @@ function OcCriarModal({
     };
   }, []);
 
+  useEffect(() => {
+    if (linhas.length === 0) return;
+    setLinhas((prev) =>
+      prev.map((linha) => {
+        const mp = mpById.get(linha.materia_prima_id);
+        if (!mp) return linha;
+        return {
+          ...linha,
+          preco_unitario: String(getPrecoMateriaPrimaPorFornecedor(mp, fornecedorId)),
+        };
+      }),
+    );
+  }, [fornecedorId, linhas.length, mpById]);
+
   function parseNumero(raw: string): number {
     const v = raw.trim().replace(",", ".");
     const n = Number(v);
@@ -2450,7 +2481,7 @@ function OcCriarModal({
           key: `${Date.now()}-${prev.length}`,
           materia_prima_id: materiaPrimaId,
           quantidade: "1",
-          preco_unitario: String(mp.preco_custo ?? ""),
+          preco_unitario: String(getPrecoMateriaPrimaPorFornecedor(mp, fornecedorId)),
           carimbo_fornecedor: "",
           botao_fornecedor: "",
         },
@@ -2466,7 +2497,7 @@ function OcCriarModal({
         const next = { ...l, ...patch };
         if (patch.materia_prima_id !== undefined && patch.materia_prima_id) {
           const mp = mpById.get(patch.materia_prima_id);
-          if (mp) next.preco_unitario = String(mp.preco_custo ?? "");
+          if (mp) next.preco_unitario = String(getPrecoMateriaPrimaPorFornecedor(mp, fornecedorId));
         }
         return next;
       }),
@@ -2551,12 +2582,13 @@ function OcCriarModal({
         const p = parseNumero(precoRaw);
         unit = Number.isFinite(p) ? p : NaN;
       } else {
-        unit = mpById.get(l.materia_prima_id)?.preco_custo ?? 0;
+        const mp = mpById.get(l.materia_prima_id);
+        unit = mp ? getPrecoMateriaPrimaPorFornecedor(mp, fornecedorId) : 0;
       }
       if (Number.isFinite(unit)) s += q * unit;
     }
     return s;
-  }, [linhas, mpById]);
+  }, [fornecedorId, linhas, mpById]);
   const descontoPercentualAtual = parseNumero(descontoPercentual);
   const descontoTotalEstimado = calcularDescontoPercentual(
     subtotalEstimado,
@@ -2788,7 +2820,7 @@ function OcCriarModal({
                                 <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                                   Custo atual:{" "}
                                   <span style={{ color: "var(--ac-text)" }}>
-                                    {fmt(mp.preco_custo ?? 0)}
+                                    {fmt(getPrecoMateriaPrimaPorFornecedor(mp, fornecedorId))}
                                   </span>
                                 </p>
                                 {jaSelecionada ? (

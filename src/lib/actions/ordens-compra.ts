@@ -102,6 +102,21 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   return normalized.length > 0 ? normalized : null
 }
 
+function resolverPrecoFornecedorDaMP(
+  mp: {
+    precoCusto: Prisma.Decimal
+    fornecedoresLinks?: Array<{ fornecedorId: string; precoCusto: Prisma.Decimal }>
+  },
+  fornecedorId: string | null,
+): number {
+  if (!fornecedorId) return numberFrom(mp.precoCusto)
+  const vinculo = mp.fornecedoresLinks?.find((item) => item.fornecedorId === fornecedorId)
+  if (!vinculo) {
+    throw new Error('Há matérias-primas sem vínculo com o fornecedor selecionado.')
+  }
+  return numberFrom(vinculo.precoCusto)
+}
+
 async function validarCampoConfiguravelOC(
   tipoOpcao: 'carimbo' | 'botao',
   valor: string | null,
@@ -482,7 +497,17 @@ export async function criarOrdemCompraManual(input: {
   const mpIds = [...new Set(linhas.map((i) => i.materia_prima_id))]
   const mps = await prisma.materiaPrima.findMany({
     where: { id: { in: mpIds } },
-    select: { id: true, precoCusto: true, tipoMaterial: true },
+    select: {
+      id: true,
+      precoCusto: true,
+      tipoMaterial: true,
+      fornecedoresLinks: input.fornecedor_id
+        ? {
+            where: { fornecedorId: input.fornecedor_id },
+            select: { fornecedorId: true, precoCusto: true },
+          }
+        : undefined,
+    },
   })
 
   if (mps.length !== mpIds.length) {
@@ -495,7 +520,9 @@ export async function criarOrdemCompraManual(input: {
   }
   const descontoPercentual = normalizarPercentualDesconto(Number(input.desconto_percentual ?? 0))
 
-  const custoPorId = new Map(mps.map((m) => [m.id, numberFrom(m.precoCusto)]))
+  const custoPorId = new Map(
+    mps.map((m) => [m.id, resolverPrecoFornecedorDaMP(m, input.fornecedor_id ?? null)]),
+  )
   const agregado = new Map<
     string,
     {
@@ -664,9 +691,24 @@ export async function criarItemOrdemCompra(
   }
 
   const uid = await resolverUsuarioRegistroOC(usuarioRegistroId)
+  const oc = await prisma.ordemCompra.findUnique({
+    where: { id: ordem_compra_id },
+    select: { fornecedorId: true },
+  })
+  if (!oc) throw new Error('Ordem de compra não encontrada.')
+
   const mp = await prisma.materiaPrima.findUnique({
     where: { id: materia_prima_id },
-    select: { precoCusto: true, tipoMaterial: true },
+    select: {
+      precoCusto: true,
+      tipoMaterial: true,
+      fornecedoresLinks: {
+        select: {
+          fornecedorId: true,
+          precoCusto: true,
+        },
+      },
+    },
   })
 
   if (!mp) throw new Error('Matéria-prima não encontrada.')
@@ -691,7 +733,7 @@ export async function criarItemOrdemCompra(
       quantidadeVendida: decimal(0),
       quantidadeAdicional: decimal(quantidade_adicional),
       quantidade: decimal(quantidade_adicional),
-      precoUnitario: mp.precoCusto,
+      precoUnitario: decimal(resolverPrecoFornecedorDaMP(mp, oc.fornecedorId ?? null)),
       carimboFornecedor: detalhesFornecedor.carimbo_fornecedor,
       botaoFornecedor: detalhesFornecedor.botao_fornecedor,
     },

@@ -76,6 +76,18 @@ export type FornecedorDeletePreview = {
   exemplos_preservadas: string[];
 };
 
+export type MateriaPrimaFornecedor = {
+  id: string;
+  materia_prima_id: string;
+  fornecedor_id: string;
+  preco_custo: number;
+  preferencial: boolean;
+  ativo: boolean;
+  observacao: string | null;
+  created_at: string;
+  fornecedor?: Fornecedor | null;
+};
+
 export type MateriaPrima = {
   id: string;
   codigo: string;
@@ -93,6 +105,7 @@ export type MateriaPrima = {
   bainha?: MateriaPrimaBainha | null;
   // join
   fornecedor?: Fornecedor | null;
+  fornecedores_vinculados?: MateriaPrimaFornecedor[];
 };
 
 export type StatusEstoque = "ok" | "atencao" | "critico";

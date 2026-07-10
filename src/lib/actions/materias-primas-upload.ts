@@ -54,10 +54,95 @@ function fornecedorAtendeTipo(
   return tipos.length === 0 || tipos.includes(tipoMaterial);
 }
 
-async function validarFornecedorParaTipo(fornecedorId: string | null, tipoMaterial: TipoMaterial) {
-  if (!fornecedorId) return;
-  const fornecedor = await prisma.fornecedor.findUnique({
-    where: { id: fornecedorId },
+type FornecedorPayload = {
+  fornecedor_id: string;
+  preco_custo: number;
+  observacao?: string | null;
+  preferencial?: boolean;
+  ativo?: boolean;
+};
+
+type NormalizedFornecedorPayload = {
+  fornecedor_id: string;
+  preco_custo: number;
+  observacao: string | null;
+  preferencial: boolean;
+  ativo: boolean;
+};
+
+function parseFornecedoresFromFormData(formData: FormData): NormalizedFornecedorPayload[] {
+  const raw = String(formData.get("fornecedores_json") ?? "").trim();
+  const fallbackFornecedorId = String(formData.get("fornecedor_id") ?? "").trim();
+  const fallbackPrecoCusto = Number(formData.get("preco_custo"));
+
+  let payload: FornecedorPayload[] = [];
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        payload = parsed as FornecedorPayload[];
+      }
+    } catch {
+      throw new Error("Lista de fornecedores inválida.");
+    }
+  }
+
+  const base =
+    payload.length > 0
+      ? payload
+      : fallbackFornecedorId
+        ? [
+            {
+              fornecedor_id: fallbackFornecedorId,
+              preco_custo: fallbackPrecoCusto,
+              preferencial: true,
+              ativo: true,
+            },
+          ]
+        : [];
+
+  const normalized = base
+    .map((item) => ({
+      fornecedor_id: String(item.fornecedor_id ?? "").trim(),
+      preco_custo: Number(item.preco_custo),
+      observacao: normalizeOptionalText(item.observacao ?? null),
+      preferencial: Boolean(item.preferencial),
+      ativo: item.ativo ?? true,
+    }))
+    .filter((item) => item.fornecedor_id);
+
+  const ids = new Set<string>();
+  for (const item of normalized) {
+    if (!Number.isFinite(item.preco_custo) || item.preco_custo < 0) {
+      throw new Error("Preço de custo inválido em um dos fornecedores.");
+    }
+    const key = item.fornecedor_id.toLowerCase();
+    if (ids.has(key)) {
+      throw new Error("Não repita o mesmo fornecedor na matéria-prima.");
+    }
+    ids.add(key);
+  }
+
+  if (normalized.length === 0) return [];
+
+  const preferencialIndex = Math.max(
+    0,
+    normalized.findIndex((item) => item.preferencial),
+  );
+
+  return normalized.map((item, index) => ({
+    ...item,
+    preferencial: index === preferencialIndex,
+  }));
+}
+
+async function validarFornecedoresParaTipo(
+  fornecedores: NormalizedFornecedorPayload[],
+  tipoMaterial: TipoMaterial,
+) {
+  if (fornecedores.length === 0) return;
+  const fornecedoresDb = await prisma.fornecedor.findMany({
+    where: { id: { in: fornecedores.map((item) => item.fornecedor_id) } },
     select: {
       id: true,
       tiposMaterial: {
@@ -65,10 +150,37 @@ async function validarFornecedorParaTipo(fornecedorId: string | null, tipoMateri
       },
     },
   });
-  if (!fornecedor) throw new Error("Fornecedor selecionado não é válido.");
-  if (!fornecedorAtendeTipo(fornecedor, tipoMaterial)) {
-    throw new Error("O fornecedor selecionado não atende o tipo de material informado.");
+  const fornecedoresMap = new Map(fornecedoresDb.map((fornecedor) => [fornecedor.id, fornecedor]));
+  for (const item of fornecedores) {
+    const fornecedor = fornecedoresMap.get(item.fornecedor_id);
+    if (!fornecedor) throw new Error("Um ou mais fornecedores selecionados não são válidos.");
+    if (!fornecedorAtendeTipo(fornecedor, tipoMaterial)) {
+      throw new Error("Há fornecedores informados que não atendem o tipo de material selecionado.");
+    }
   }
+}
+
+async function sincronizarFornecedoresMateriaPrima(
+  tx: Prisma.TransactionClient,
+  materiaPrimaId: string,
+  fornecedores: NormalizedFornecedorPayload[],
+) {
+  await tx.materiaPrimaFornecedor.deleteMany({
+    where: { materiaPrimaId },
+  });
+
+  if (fornecedores.length === 0) return;
+
+  await tx.materiaPrimaFornecedor.createMany({
+    data: fornecedores.map((item) => ({
+      materiaPrimaId,
+      fornecedorId: item.fornecedor_id,
+      precoCusto: decimal(item.preco_custo),
+      preferencial: item.preferencial,
+      ativo: item.ativo,
+      observacao: item.observacao,
+    })),
+  });
 }
 
 function listarOpcoesSelecionadas(
@@ -233,21 +345,24 @@ export async function salvarMPComFoto(formData: FormData) {
   const sku = String(formData.get("sku") ?? "").trim();
   const nome = String(formData.get("nome") ?? "").trim();
   const tipo_material = normalizarTipoMaterial(String(formData.get("tipo_material") ?? ""));
-  const fornecedor_id = formData.get("fornecedor_id");
   const preco_custo = Number(formData.get("preco_custo"));
   const estoque_atual = Number(formData.get("estoque_atual"));
   const estoque_minimo = Number(formData.get("estoque_minimo"));
   const foto = formData.get("foto");
+  const fornecedores = parseFornecedoresFromFormData(formData);
+  const fornecedorPreferencial = fornecedores.find((item) => item.preferencial) ?? null;
+  const fornecedor_id = fornecedorPreferencial?.fornecedor_id ?? null;
+  const precoCustoFinal = fornecedorPreferencial?.preco_custo ?? preco_custo;
 
   if (!sku) throw new Error("SKU é obrigatório.");
   if (!nome) throw new Error("Nome é obrigatório.");
   if (!tipo_material) throw new Error("Tipo de material é obrigatório.");
-  if (!Number.isFinite(preco_custo)) throw new Error("Preço de custo inválido.");
+  if (!Number.isFinite(precoCustoFinal)) throw new Error("Preço de custo inválido.");
 
   const isEdit = typeof id === "string" && id.length > 0;
 
   await assertPermissao("materias_primas", isEdit ? "editar" : "criar");
-  await validarFornecedorParaTipo(fornecedor_id ? String(fornecedor_id) : null, tipo_material);
+  await validarFornecedoresParaTipo(fornecedores, tipo_material);
   await validarOpcoesConfiguraveis(tipo_material, formData);
 
   let mpId: string;
@@ -263,12 +378,13 @@ export async function salvarMPComFoto(formData: FormData) {
             sku,
             nome,
             tipoMaterial: tipo_material,
-            fornecedorId: fornecedor_id ? String(fornecedor_id) : null,
-            precoCusto: decimal(preco_custo),
+            fornecedorId: fornecedor_id,
+            precoCusto: decimal(precoCustoFinal),
             estoqueAtual: decimal(estoque_atual || 0),
             estoqueMinimo: decimal(estoque_minimo || 0),
           },
         });
+        await sincronizarFornecedoresMateriaPrima(tx, mpId, fornecedores);
         await salvarDetalhesTipoMaterial(tx, mpId, tipo_material, formData);
       });
     } catch (error) {
@@ -286,13 +402,14 @@ export async function salvarMPComFoto(formData: FormData) {
             sku,
             nome,
             tipoMaterial: tipo_material,
-            fornecedorId: fornecedor_id ? String(fornecedor_id) : null,
-            precoCusto: decimal(preco_custo),
+            fornecedorId: fornecedor_id,
+            precoCusto: decimal(precoCustoFinal),
             estoqueAtual: decimal(estoque_atual || 0),
             estoqueMinimo: decimal(estoque_minimo || 0),
           },
           select: { id: true },
         });
+        await sincronizarFornecedoresMateriaPrima(tx, created.id, fornecedores);
         await salvarDetalhesTipoMaterial(tx, created.id, tipo_material, formData);
         return created;
       });

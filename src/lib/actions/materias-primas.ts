@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import type {
   MateriaPrima,
+  MateriaPrimaFornecedor,
   MovimentacaoEstoque,
   Faca,
   Fornecedor,
@@ -207,6 +208,49 @@ function mapFornecedorDetalhe(
   };
 }
 
+function mapMateriaPrimaFornecedorDetalhe(row: {
+  id: string;
+  materiaPrimaId: string;
+  fornecedorId: string;
+  precoCusto: Prisma.Decimal;
+  preferencial: boolean;
+  ativo: boolean;
+  observacao: string | null;
+  createdAt: Date;
+  fornecedor: {
+    id: string;
+    nome: string;
+    telefone: string | null;
+    email: string | null;
+    tipoDocumento: "cnpj" | "cpf";
+    documento: string | null;
+    cep: string | null;
+    logradouro: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+    razaoSocial: string | null;
+    ie: string | null;
+    codigoMunicipioIbge: string | null;
+    createdAt: Date;
+    tiposMaterial?: { tipoMaterial: TipoMaterial }[];
+  } | null;
+}): MateriaPrimaFornecedor {
+  return {
+    id: row.id,
+    materia_prima_id: row.materiaPrimaId,
+    fornecedor_id: row.fornecedorId,
+    preco_custo: numberFrom(row.precoCusto),
+    preferencial: row.preferencial,
+    ativo: row.ativo,
+    observacao: row.observacao,
+    created_at: row.createdAt.toISOString(),
+    fornecedor: mapFornecedorDetalhe(row.fornecedor),
+  };
+}
+
 function mapMateriaPrimaDetalhe(row: {
   id: string;
   codigo: string;
@@ -239,6 +283,36 @@ function mapMateriaPrimaDetalhe(row: {
     createdAt: Date;
     tiposMaterial?: { tipoMaterial: TipoMaterial }[];
   } | null;
+  fornecedoresLinks: Array<{
+    id: string;
+    materiaPrimaId: string;
+    fornecedorId: string;
+    precoCusto: Prisma.Decimal;
+    preferencial: boolean;
+    ativo: boolean;
+    observacao: string | null;
+    createdAt: Date;
+    fornecedor: {
+      id: string;
+      nome: string;
+      telefone: string | null;
+      email: string | null;
+      tipoDocumento: "cnpj" | "cpf";
+      documento: string | null;
+      cep: string | null;
+      logradouro: string | null;
+      numero: string | null;
+      complemento: string | null;
+      bairro: string | null;
+      cidade: string | null;
+      uf: string | null;
+      razaoSocial: string | null;
+      ie: string | null;
+      codigoMunicipioIbge: string | null;
+      createdAt: Date;
+      tiposMaterial?: { tipoMaterial: TipoMaterial }[];
+    } | null;
+  }>;
   lamina: { aco: string | null } | null;
   bloco: { tipo: string | null; cor: string | null } | null;
   bainha: { polegadas: string | null; modelo: string | null } | null;
@@ -259,6 +333,7 @@ function mapMateriaPrimaDetalhe(row: {
     bloco: row.bloco,
     bainha: row.bainha,
     fornecedor: mapFornecedorDetalhe(row.fornecedor),
+    fornecedores_vinculados: row.fornecedoresLinks.map(mapMateriaPrimaFornecedorDetalhe),
   };
 }
 
@@ -300,11 +375,28 @@ type MPInput = {
   tipo_material?: TipoMaterial;
   fornecedor_id: string | null;
   preco_custo: number;
+  fornecedores?: MPFornecedorInput[] | null;
   estoque_atual: number;
   estoque_minimo: number;
   lamina?: Partial<MateriaPrimaLamina> | null;
   bloco?: Partial<MateriaPrimaBloco> | null;
   bainha?: Partial<MateriaPrimaBainha> | null;
+};
+
+type MPFornecedorInput = {
+  fornecedor_id: string;
+  preco_custo: number;
+  observacao?: string | null;
+  preferencial?: boolean;
+  ativo?: boolean;
+};
+
+type NormalizedMPFornecedorInput = {
+  fornecedor_id: string;
+  preco_custo: number;
+  observacao: string | null;
+  preferencial: boolean;
+  ativo: boolean;
 };
 
 type NormalizedMPInput = {
@@ -313,6 +405,7 @@ type NormalizedMPInput = {
   tipo_material: TipoMaterial;
   fornecedor_id: string | null;
   preco_custo: number;
+  fornecedores: NormalizedMPFornecedorInput[];
   estoque_atual: number;
   estoque_minimo: number;
   lamina: MateriaPrimaLamina | null;
@@ -320,11 +413,65 @@ type NormalizedMPInput = {
   bainha: MateriaPrimaBainha | null;
 };
 
+function normalizeMPFornecedores(input: MPInput, prefixo: string): NormalizedMPFornecedorInput[] {
+  const linksFromPayload = (input.fornecedores ?? [])
+    .map((item) => ({
+      fornecedor_id: String(item.fornecedor_id ?? "").trim(),
+      preco_custo: Number(item.preco_custo),
+      observacao: normalizeOptionalText(item.observacao),
+      preferencial: Boolean(item.preferencial),
+      ativo: item.ativo ?? true,
+    }))
+    .filter((item) => item.fornecedor_id);
+
+  const fallbackPreferencial = input.fornecedor_id?.trim()
+    ? [
+        {
+          fornecedor_id: input.fornecedor_id.trim(),
+          preco_custo: Number(input.preco_custo),
+          observacao: null,
+          preferencial: true,
+          ativo: true,
+        },
+      ]
+    : [];
+
+  const base = linksFromPayload.length > 0 ? linksFromPayload : fallbackPreferencial;
+
+  for (const link of base) {
+    if (!Number.isFinite(link.preco_custo) || link.preco_custo < 0) {
+      throw new Error(`${prefixo}preço de custo inválido em um dos fornecedores.`);
+    }
+  }
+
+  const duplicado = new Set<string>();
+  for (const link of base) {
+    const key = link.fornecedor_id.toLowerCase();
+    if (duplicado.has(key)) {
+      throw new Error(`${prefixo}não repita o mesmo fornecedor na matéria-prima.`);
+    }
+    duplicado.add(key);
+  }
+
+  if (base.length === 0) return [];
+
+  const preferencialIndex = Math.max(
+    0,
+    base.findIndex((item) => item.preferencial),
+  );
+
+  return base.map((item, index) => ({
+    ...item,
+    preferencial: index === preferencialIndex,
+  }));
+}
+
 function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   const prefixo = linha ? `Linha ${linha}: ` : "";
   const sku = input.sku.trim();
   const nome = input.nome.trim();
   const tipoRaw = typeof input.tipo_material === "string" ? input.tipo_material : "";
+  const fornecedores = normalizeMPFornecedores(input, prefixo);
   if (!isTipoMaterial(tipoRaw)) {
     throw new Error(`${prefixo}tipo de material é obrigatório.`);
   }
@@ -346,8 +493,12 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
     sku,
     nome,
     tipo_material,
-    fornecedor_id: input.fornecedor_id?.trim() || null,
-    preco_custo,
+    fornecedor_id:
+      fornecedores.find((item) => item.preferencial)?.fornecedor_id ??
+      input.fornecedor_id?.trim() ??
+      null,
+    preco_custo: fornecedores.find((item) => item.preferencial)?.preco_custo ?? preco_custo,
+    fornecedores,
     estoque_atual,
     estoque_minimo,
     lamina:
@@ -373,14 +524,14 @@ function normalizeMPInput(input: MPInput, linha?: number): NormalizedMPInput {
   };
 }
 
-async function validarFornecedorParaTipo(
-  fornecedorId: string | null,
+async function validarFornecedoresParaTipo(
+  fornecedores: NormalizedMPFornecedorInput[],
   tipoMaterial: TipoMaterial,
 ): Promise<void> {
-  if (!fornecedorId) return;
+  if (fornecedores.length === 0) return;
 
-  const fornecedor = await prisma.fornecedor.findUnique({
-    where: { id: fornecedorId },
+  const fornecedoresDb = await prisma.fornecedor.findMany({
+    where: { id: { in: fornecedores.map((item) => item.fornecedor_id) } },
     select: {
       id: true,
       tiposMaterial: {
@@ -389,13 +540,39 @@ async function validarFornecedorParaTipo(
     },
   });
 
-  if (!fornecedor) {
-    throw new Error("Fornecedor selecionado não é válido.");
+  const fornecedoresMap = new Map(fornecedoresDb.map((fornecedor) => [fornecedor.id, fornecedor]));
+  for (const item of fornecedores) {
+    const fornecedor = fornecedoresMap.get(item.fornecedor_id);
+    if (!fornecedor) {
+      throw new Error("Um ou mais fornecedores selecionados não são válidos.");
+    }
+    if (!fornecedorAtendeTipo(fornecedor, tipoMaterial)) {
+      throw new Error("Há fornecedores informados que não atendem o tipo de material selecionado.");
+    }
   }
+}
 
-  if (!fornecedorAtendeTipo(fornecedor, tipoMaterial)) {
-    throw new Error("O fornecedor selecionado não atende o tipo de material informado.");
-  }
+async function sincronizarFornecedoresMateriaPrima(
+  tx: Prisma.TransactionClient,
+  materiaPrimaId: string,
+  input: NormalizedMPInput,
+) {
+  await tx.materiaPrimaFornecedor.deleteMany({
+    where: { materiaPrimaId },
+  });
+
+  if (input.fornecedores.length === 0) return;
+
+  await tx.materiaPrimaFornecedor.createMany({
+    data: input.fornecedores.map((item) => ({
+      materiaPrimaId,
+      fornecedorId: item.fornecedor_id,
+      precoCusto: decimal(item.preco_custo),
+      preferencial: item.preferencial,
+      ativo: item.ativo,
+      observacao: item.observacao,
+    })),
+  });
 }
 
 function listarOpcoesSelecionadas(input: NormalizedMPInput): Array<{
@@ -483,7 +660,7 @@ export async function criarMateriaPrima(input: MPInput) {
   await assertPermissao("materias_primas", "criar");
   const normalized = normalizeMPInput(input);
   const codigo = await gerarCodigoMP();
-  await validarFornecedorParaTipo(normalized.fornecedor_id, normalized.tipo_material);
+  await validarFornecedoresParaTipo(normalized.fornecedores, normalized.tipo_material);
   await validarOpcoesConfiguraveis(normalized);
 
   try {
@@ -502,6 +679,7 @@ export async function criarMateriaPrima(input: MPInput) {
         },
         select: { id: true },
       });
+      await sincronizarFornecedoresMateriaPrima(tx, created.id, normalized);
       await salvarDetalhesTipoMaterial(tx, created.id, normalized);
     });
   } catch (error) {
@@ -524,37 +702,11 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
       "Existem linhas duplicadas na planilha para a mesma regra de unicidade do material.",
     );
   }
-  const fornecedorIds = [
-    ...new Set(
-      normalizedInputs
-        .map((input) => input.fornecedor_id)
-        .filter((fornecedorId): fornecedorId is string => fornecedorId !== null),
+  await Promise.all(
+    normalizedInputs.map((input) =>
+      validarFornecedoresParaTipo(input.fornecedores, input.tipo_material),
     ),
-  ];
-
-  if (fornecedorIds.length > 0) {
-    const fornecedores = await prisma.fornecedor.findMany({
-      where: { id: { in: fornecedorIds } },
-      select: { id: true, tiposMaterial: { select: { tipoMaterial: true } } },
-    });
-    const validos = new Set(fornecedores.map((fornecedor) => fornecedor.id));
-    const fornecedorInvalido = normalizedInputs.find(
-      (input) => input.fornecedor_id && !validos.has(input.fornecedor_id),
-    );
-    if (fornecedorInvalido?.fornecedor_id) {
-      throw new Error("Um ou mais fornecedores selecionados não são válidos.");
-    }
-
-    const fornecedoresMap = new Map(fornecedores.map((fornecedor) => [fornecedor.id, fornecedor]));
-    const fornecedorTipoInvalido = normalizedInputs.find((input) => {
-      if (!input.fornecedor_id) return false;
-      const fornecedor = fornecedoresMap.get(input.fornecedor_id);
-      return !fornecedor || !fornecedorAtendeTipo(fornecedor, input.tipo_material);
-    });
-    if (fornecedorTipoInvalido?.fornecedor_id) {
-      throw new Error("Há fornecedores na planilha que não atendem o tipo de material informado.");
-    }
-  }
+  );
 
   await Promise.all(normalizedInputs.map((input) => validarOpcoesConfiguraveis(input)));
 
@@ -584,6 +736,7 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
           },
           select: { id: true },
         });
+        await sincronizarFornecedoresMateriaPrima(tx, created.id, input);
         await salvarDetalhesTipoMaterial(tx, created.id, input);
       }
     });
@@ -597,7 +750,7 @@ export async function criarMateriasPrimasEmLote(inputs: MPInput[]) {
 export async function atualizarMateriaPrima(id: string, input: MPInput) {
   await assertPermissao("materias_primas", "editar");
   const normalized = normalizeMPInput(input);
-  await validarFornecedorParaTipo(normalized.fornecedor_id, normalized.tipo_material);
+  await validarFornecedoresParaTipo(normalized.fornecedores, normalized.tipo_material);
   await validarOpcoesConfiguraveis(normalized);
   try {
     await prisma.$transaction(async (tx) => {
@@ -614,6 +767,7 @@ export async function atualizarMateriaPrima(id: string, input: MPInput) {
           estoqueMinimo: decimal(normalized.estoque_minimo),
         },
       });
+      await sincronizarFornecedoresMateriaPrima(tx, id, normalized);
       await salvarDetalhesTipoMaterial(tx, id, normalized);
     });
   } catch (error) {
@@ -667,6 +821,18 @@ export async function getMPDetalhe(mpId: string): Promise<MPDetalheData> {
               select: { tipoMaterial: true },
             },
           },
+        },
+        fornecedoresLinks: {
+          include: {
+            fornecedor: {
+              include: {
+                tiposMaterial: {
+                  select: { tipoMaterial: true },
+                },
+              },
+            },
+          },
+          orderBy: [{ preferencial: "desc" }, { createdAt: "asc" }],
         },
         lamina: {
           select: { aco: true },
