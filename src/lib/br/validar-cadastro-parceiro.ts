@@ -103,16 +103,45 @@ export type CamposCadastroCliente = CamposCadastroParceiro & {
 
 /** Validação completa de cliente (parceiro + tipo + indicador IE). */
 export function validarCamposObrigatoriosCliente(input: CamposCadastroCliente) {
-  validarCamposObrigatoriosParceiro(input)
-
   const tipo = input.tipo.trim()
+  exigirTexto(input.nome, 'Nome')
   if (!tipo) throw new Error('Tipo de cliente é obrigatório.')
   if (!TIPOS_CLIENTE.includes(tipo as TipoCliente)) {
     throw new Error('Tipo de cliente inválido.')
   }
 
-  const ind = Number(input.indicador_ie)
-  if (!INDICADORES_IE_VALIDOS.includes(ind as (typeof INDICADORES_IE_VALIDOS)[number])) {
-    throw new Error('Indicador IE é obrigatório.')
+  const doc = apenasDigitos(input.documento)
+  if (doc) {
+    if (input.tipo_documento === 'cpf') {
+      if (doc.length !== 11) throw new Error('CPF deve ter 11 dígitos.')
+      if (!validarCpf(doc)) throw new Error('CPF inválido.')
+    } else {
+      if (doc.length !== 14) throw new Error('CNPJ deve ter 14 dígitos.')
+      if (!validarCnpj(doc)) throw new Error('CNPJ inválido.')
+    }
+  }
+
+  const telefone = input.telefone.trim()
+  if (telefone && !/^[\d\s()\-+]+$/.test(telefone)) {
+    throw new Error('Telefone inválido. Use apenas números, espaços e os caracteres ( ) - +')
+  }
+
+  validarEmail(input, { emailOpcional: true })
+
+  const cep = apenasDigitos(input.cep)
+  if (cep && cep.length !== 8) throw new Error('CEP deve ter 8 dígitos.')
+
+  const uf = input.uf.trim().toUpperCase()
+  if (uf && uf.length !== 2) throw new Error('UF deve ter 2 letras.')
+
+  const ibge = apenasDigitos(input.codigo_municipio_ibge ?? '')
+  if (ibge && ibge.length !== 7) throw new Error('Código IBGE do município deve ter 7 dígitos.')
+
+  const indRaw = input.indicador_ie
+  if (indRaw != null) {
+    const ind = Number(indRaw)
+    if (!INDICADORES_IE_VALIDOS.includes(ind as (typeof INDICADORES_IE_VALIDOS)[number])) {
+      throw new Error('Indicador IE inválido.')
+    }
   }
 }

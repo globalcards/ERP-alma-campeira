@@ -275,9 +275,8 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>Documento *</label>
+            <label className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>Documento</label>
             <select
-              required
               value={tipoDocumento}
               onChange={(e) => onTipoDocumentoChange(e.target.value as TipoDocumento)}
               className="px-3 py-2.5 rounded-lg text-sm outline-none appearance-none"
@@ -296,8 +295,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           <div className="sm:col-span-2">
             <Input
               id="cli-documento"
-              label={tipoDocumento === 'cpf' ? 'CPF *' : 'CNPJ *'}
-              required
+              label={tipoDocumento === 'cpf' ? 'CPF' : 'CNPJ'}
               placeholder={tipoDocumento === 'cpf' ? '000.000.000-00' : '00.000.000/0000-00'}
               value={documento}
               onChange={(e) => onDocumentoInput(e.target.value)}
@@ -318,8 +316,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           <div className="grid grid-cols-1 gap-3">
             <Input
               id="cli-razao-social"
-              label="Razão Social *"
-              required
+              label="Razão Social"
               placeholder="Nome jurídico (se diferente do nome fantasia acima)"
               value={razaoSocial}
               onChange={(e) => setRazaoSocial(e.target.value)}
@@ -330,17 +327,15 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             id="cli-ie"
-            label="Inscrição Estadual *"
-            required
+            label="Inscrição Estadual"
             placeholder="ISENTO ou número"
             value={ie}
             onChange={(e) => setIe(e.target.value)}
           />
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="cli-ind-ie" className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>Indicador IE *</label>
+            <label htmlFor="cli-ind-ie" className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>Indicador IE</label>
             <select
               id="cli-ind-ie"
-              required
               value={indicadorIe}
               onChange={(e) => setIndicadorIe(Number(e.target.value))}
               className="px-3 py-2.5 rounded-lg text-sm outline-none appearance-none"
@@ -360,8 +355,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <Input
             id="cli-tel"
-            label="Telefone *"
-            required
+            label="Telefone"
             type="tel"
             value={telefone}
             onChange={(e) => setTelefone(e.target.value.replace(/[^\d\s()\-+]/g, ''))}
@@ -369,8 +363,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           />
           <Input
             id="cli-email"
-            label="E-mail *"
-            required
+            label="E-mail"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -387,8 +380,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
             <div className="flex-1 min-w-0">
               <Input
                 id="cli-cep"
-                label="CEP *"
-                required
+                label="CEP"
                 placeholder="00000-000"
                 value={cep}
                 onChange={(e) => onCepInput(e.target.value)}
@@ -401,8 +393,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           </div>
           <Input
             id="cli-logradouro"
-            label="Logradouro (rua) *"
-            required
+            label="Logradouro (rua)"
             placeholder="Rua, avenida..."
             value={logradouro}
             onChange={(e) => setLogradouro(e.target.value)}
@@ -410,8 +401,7 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <Input
               id="cli-numero"
-              label="Número *"
-              required
+              label="Número"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               placeholder="123"
@@ -426,25 +416,22 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           </div>
           <Input
             id="cli-bairro"
-            label="Bairro *"
-            required
+            label="Bairro"
             value={bairro}
             onChange={(e) => setBairro(e.target.value)}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               id="cli-cidade"
-              label="Cidade *"
-              required
+              label="Cidade"
               value={cidade}
               onChange={(e) => setCidade(e.target.value)}
               placeholder="Porto Alegre"
             />
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="cli-uf" className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>UF *</label>
+              <label htmlFor="cli-uf" className="text-sm font-medium" style={{ color: 'var(--ac-text)' }}>UF</label>
               <select
                 id="cli-uf"
-                required
                 value={estado}
                 onChange={(e) => setEstado(e.target.value)}
                 className="px-3 py-2.5 rounded-lg text-sm outline-none appearance-none"
@@ -464,12 +451,11 @@ export function ClienteModal({ open, onClose, editando, onSaved }: Props) {
           </div>
           <Input
             id="cli-ibge"
-            label="Código IBGE do município *"
+            label="Código IBGE do município"
             placeholder="7 dígitos (preenchido ao buscar CEP)"
             value={codigoIbge}
             onChange={(e) => setCodigoIbge(e.target.value.replace(/\D/g, '').slice(0, 7))}
             inputMode="numeric"
-            required
           />
         </div>
 
